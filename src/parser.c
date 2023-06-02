@@ -110,45 +110,45 @@ int max(int x, int y)
     return (x > y) ? x : y;
 }
 
-joined_parser_t join_parsers(int count, ...)
-{
-    va_list ap;
-    va_start(ap, count);
-    joined_parser_t final_parser;
-    final_parser.n = count;
-    final_parser.parsers = malloc(count * sizeof(struct parser *));
+// joined_parser_t join_parsers(int count, ...)
+// {
+//     va_list ap;
+//     va_start(ap, count);
+//     joined_parser_t final_parser;
+//     final_parser.n = count;
+//     final_parser.parsers = malloc(count * sizeof(struct parser *));
 
-    struct parser *currentParser;
-    for (int i = 0; i < count; i += 1)
-    {
-        final_parser.parsers[i] = va_arg(ap, struct parser *);
-    }
-    return final_parser;
-}
+//     struct parser *currentParser;
+//     for (int i = 0; i < count; i += 1)
+//     {
+//         final_parser.parsers[i] = va_arg(ap, struct parser *);
+//     }
+//     return final_parser;
+// }
 
-struct parser_event *feed_joined_parser(joined_parser_t parsers, const uint8_t c)
-{
-    struct parser_event *events = malloc(sizeof(struct parser_event) * parsers.n);
-    for (int i = 0; i < parsers.n; i += 1)
-    {
-        events[i] = *parser_feed(parsers.parsers[i], c);
-    }
-    return events;
-}
+// struct parser_event *feed_joined_parser(joined_parser_t parsers, const uint8_t c)
+// {
+//     struct parser_event *events = malloc(sizeof(struct parser_event) * parsers.n);
+//     for (int i = 0; i < parsers.n; i += 1)
+//     {
+//         events[i] = *parser_feed(parsers.parsers[i], c);
+//     }
+//     return events;
+// }
 
-void destroy_joined_parsers(joined_parser_t parsers)
-{
-    for (int i = 0; i < parsers.n; i += 1)
-    {
-        parser_destroy(parsers.parsers[i]);
-    }
-    free(parsers.parsers);
-}
+// void destroy_joined_parsers(joined_parser_t parsers)
+// {
+//     for (int i = 0; i < parsers.n; i += 1)
+//     {
+//         parser_destroy(parsers.parsers[i]);
+//     }
+//     free(parsers.parsers);
+// }
 
-void reset_joined_parsers(joined_parser_t parsers)
-{
-    for (int i = 0; i < parsers.n; i += 1)
-    {
-        parser_reset(parsers.parsers[i]);
-    }
-}
+// void reset_joined_parsers(joined_parser_t parsers)
+// {
+//     for (int i = 0; i < parsers.n; i += 1)
+//     {
+//         parser_reset(parsers.parsers[i]);
+//     }
+// }

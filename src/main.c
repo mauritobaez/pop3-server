@@ -19,28 +19,71 @@
 
 #define MAXPENDING 5
 #define POP3_PORT "110"
+#define OTHER_PASSIVE_PORT "140"
 #define BUFSIZE 1000
 
 #define MAX_SOCKETS 1000
 
 static char addrBuffer[1000];
 
+//TODO: dudoso el array de structs
 socket_handler sockets[MAX_SOCKETS] = {0};
-int current_socket = 1;
+unsigned int current_socket_count = 1;
 
-// blocking connection
-int handle_tcp_echo_client(int *socket)
-{
-    log(DEBUG, "closed client %d", *socket);
+void log_socket(socket_handler socket) {
+    log(DEBUG, "socket: %d, occupied: %d, try_read: %d, try_write: %d", socket.fd, socket.occupied, socket.try_read, socket.try_write);
+}
+
+// int handle_pop3_client(...) {
+//     /*
+//         if read -> puedo escribir
+//         if puedo escribir -> chequeo si puedo escribir y return
+//         si por poll puedo escribir, escribo
+//     */
+
+// }
+
+void free_client_socket(int socket) {
+    
     for (int i = 0; i < MAX_SOCKETS; i += 1)
     {
-        if (sockets[i].fd == *socket)
+        if (sockets[i].fd == socket)
         {
-            sockets[i].occupied = 0;
-            current_socket -= 1;
+            sockets[i].occupied = false;
+            current_socket_count -= 1;
             break;
         }
     }
+    int ans = close(socket);
+    log(DEBUG, "closing socket %d %d %s", socket, ans, strerror(errno));
+}
+
+socket_handler* get_socket_handler(int socket) {
+    for (int i = 0; i < MAX_SOCKETS; i += 1)
+    {
+        if (sockets[i].fd == socket)
+        {
+            return &sockets[i];
+        }
+    }
+    log(FATAL, "Socket %d not found\n", socket);
+}
+
+
+// blocking connection
+int handle_tcp_echo_client(void *index, bool canRead, bool canWrite)
+{
+    int sock_index = *(int*) index;
+    if (canWrite) {
+        socket_handler* status = &sockets[sock_index];
+        send(status->fd, "hola", 5, 0);
+        status->try_write = false;
+        log(DEBUG, "closed client %d", status->fd);
+        free_client_socket(status->fd);
+    }
+    // yield -> quiero escuchar
+    // yield -> quiero escribir
+
     // {
     //     char buffer[BUFSIZE]; // Buffer for echo string
     //     // Receive message from client
@@ -77,12 +120,10 @@ int handle_tcp_echo_client(int *socket)
     //         }
     //     }
 
-    close(*socket);
-    free(socket);
     return 0;
 }
 
-int setup_passive_socket()
+int setup_passive_socket(char *socket_num)
 {
     struct addrinfo addr_criteria;
     memset(&addr_criteria, 0, sizeof(addr_criteria));
@@ -121,7 +162,7 @@ int setup_passive_socket()
     }
     if ((listen(serv_sock, MAXPENDING) != 0))
     {
-        log(FATAL, "listen failed\n", "");
+        log(FATAL, "listen failed %s\n", strerror(errno));
         goto error;
     }
 
@@ -132,86 +173,106 @@ error:
     return -1;
 }
 
-typedef struct accept_data
+int accept_pop3_connection(void *index, bool can_read, bool can_write)
 {
-    int server_socket;
-} accept_data;
+    if (can_read) {
+        int sock_index = *(int *)index;
+        socket_handler *socket_state = &sockets[sock_index];
 
-// blocking connection
-int accept_pop3_connection(accept_data *accept_data)
-{
-    struct sockaddr_storage client_addr;
-    socklen_t client_addr_len = sizeof(client_addr);
+        struct sockaddr_storage client_addr;
+        socklen_t client_addr_len = sizeof(client_addr);
 
-    int client_socket = accept(accept_data->server_socket, (struct sockaddr *)&client_addr, &client_addr_len);
-
-    if (client_socket < 0)
-    {
-        log(ERROR, "accept failed\n", "");
-        return -1;
-    }
-
-    int found_free = 0;
-    for (int i = 0; i < MAX_SOCKETS && !found_free; i += 1)
-    {
-        if (!sockets[i].occupied)
-        {
-            log(DEBUG, "accepted client socket: %d\n", client_socket);
-            sockets[i].fd = client_socket;
-            sockets[i].occupied = 1;
-            sockets[i].handler = (int (*)(void *)) & handle_tcp_echo_client;
-            current_socket += 1;
-            int *data = malloc(sizeof(int));
-            *data = client_socket;
-            sockets[i].data = data;
-            found_free = 1;
+        if (current_socket_count == MAX_SOCKETS) {
+            return -1;
         }
+        int client_socket = accept(socket_state->fd, (struct sockaddr *)&client_addr, &client_addr_len);
+
+        if (client_socket < 0)
+        {
+            log(ERROR, "accept failed %s\n", strerror(errno));
+            return -1;
+        }
+
+        // todo: hacerlo su porpia funcion
+        for (int i = 0; i < MAX_SOCKETS; i += 1)
+        {
+            if (!sockets[i].occupied)
+            {
+                log(DEBUG, "accepted client socket: %d\n", client_socket);
+                sockets[i].fd = client_socket;
+                sockets[i].occupied = true;
+                sockets[i].handler = (int (*)(void *, bool, bool)) & handle_tcp_echo_client;
+                sockets[i].try_write = true;
+                sockets[i].try_read = false;
+                current_socket_count += 1;
+                return 0;
+            }
+        }
+        
     }
-    return client_socket;
+    return -1;
 }
 
 int main(int argc, char *argv[])
 {
-    sockets[0].fd = setup_passive_socket();
-    accept_data accept_state = {
-        .server_socket = sockets[0].fd,
-    };
-
-    sockets[0].data = &accept_state;
-    sockets[0].handler = (int (*)(void *)) & accept_pop3_connection;
-    sockets[0].occupied = 1;
+    sockets[0].fd = setup_passive_socket(POP3_PORT);
+    //TODO: chequear que funcione para IPv4 e IPv6
+    sockets[0].handler = (int (*)(void *, bool, bool)) & accept_pop3_connection;
+    sockets[0].occupied = true;
+    sockets[0].try_write = false;
+    sockets[0].try_read = true;
+    
     while (1)
     {
-        int npdfs = current_socket;
-        log(DEBUG, "current socket-size %d\n", current_socket);
-        struct pollfd pdfs[npdfs];
+        unsigned int total_poll_fds = current_socket_count;
+        log(DEBUG, "current socket-size %d\n", current_socket_count);
+        if(total_poll_fds == 0 || total_poll_fds > MAX_SOCKETS) {
+            log(FATAL, "unexpected error: invalid socket count (%d)", total_poll_fds);
+        }
+        struct pollfd pfds[total_poll_fds];
+        unsigned socket_index[total_poll_fds];
+        
 
-        for (int j = 0, socket_num = 0; j < MAX_SOCKETS; j += 1)
+        for (unsigned int j = 0, socket_num = 0; j < MAX_SOCKETS && socket_num < total_poll_fds; j += 1)
         {
             if (sockets[j].occupied)
             {
-                pdfs[socket_num].events = POLLIN | POLLPRI;
-                pdfs[socket_num].fd = sockets[j].fd;
+                socket_index[socket_num] = j;
+                pfds[socket_num].fd = sockets[j].fd;
+                pfds[socket_num].events = 0;
+                if (sockets[j].try_read) {
+                    pfds[socket_num].events |= POLLIN;
+                }
+                if (sockets[j].try_write) {
+                    pfds[socket_num].events |= POLLOUT;
+                }
                 socket_num += 1;
             }
         }
 
-        if (poll(pdfs, npdfs, -1) < 0)
+        if (poll(pfds, total_poll_fds, -1) < 0)
         {
-            log(ERROR, "Poll failed()", "");
+            log(ERROR, "Poll failed() %s", strerror(errno));
         }
 
-        for (int i = 0; i < npdfs; i += 1)
+        for (unsigned int i = 0; i < total_poll_fds; i += 1)
         {
-            if (pdfs[i].revents == 0)
+            if (pfds[i].revents == 0)
                 continue;
-            if (pdfs[i].revents & POLLIN && pdfs[i].revents & POLLOUT)
+
+            log(DEBUG, "Socket %d - revents = %d", i, pfds[i].revents);
+            
+            if (pfds[i].revents & POLLERR || pfds[i].revents & POLLNVAL)
             {
-                log(FATAL, "revents error\n", "");
+                log(FATAL, "revents error %s\n", strerror(errno));
             }
-            if (pdfs[i].revents & POLLIN || pdfs[i].revents & POLLOUT)
+            if (pfds[i].revents & POLLHUP)
             {
-                sockets[i].handler(sockets[i].data);
+                free_client_socket(pfds[i].fd);
+            }
+            if (pfds[i].revents & POLLIN || pfds[i].revents & POLLOUT)
+            {
+                sockets[socket_index[i]].handler(&socket_index[i], pfds[i].revents & POLLIN, pfds[i].revents & POLLOUT);
             }
         }
     }

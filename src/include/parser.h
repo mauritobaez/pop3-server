@@ -90,15 +90,15 @@ parser_feed(struct parser *p, const uint8_t c);
 const unsigned *
 parser_no_classes(void);
 
-typedef struct joined_parser
-{
-    struct parser **parsers;
-    size_t n;
-} joined_parser_t;
+// typedef struct joined_parser
+// {
+//     struct parser **parsers;
+//     size_t n;
+// } joined_parser_t;
 
-joined_parser_t join_parsers(int count, ...);
-struct parser_event *feed_joined_parser(joined_parser_t parsers, const uint8_t c);
-void destroy_joined_parsers(joined_parser_t parsers);
-void reset_joined_parsers(joined_parser_t parsers);
+// joined_parser_t join_parsers(int count, ...);
+// struct parser_event *feed_joined_parser(joined_parser_t parsers, const uint8_t c);
+// void destroy_joined_parsers(joined_parser_t parsers);
+// void reset_joined_parsers(joined_parser_t parsers);
 
 #endif

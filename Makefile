@@ -4,7 +4,7 @@ SERVER_OBJS = src/*.o
 
 COMPILER = ${CC}
 
-CFLAGS = --std=c11 -fsanitize=address -pedantic -pedantic-errors -Wall -Wextra -Wno-unused-parameter -Wno-implicit-fallthrough -D_POSIX_C_SOURCE=200112L -g
+CFLAGS = --std=c11 -fsanitize=address -pedantic -pedantic-errors -Wall -Wextra -Wno-unused-parameter -Wno-newline-eof -Wno-implicit-fallthrough -D_POSIX_C_SOURCE=200112L -g 
 HEADERS = -I src/include
 LIBS = -l pthread
 
