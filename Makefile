@@ -17,4 +17,7 @@ main:
 	$(COMPILER) $(CFLAGS) $(HEADERS) -o $(TARGET_SERVER) $(SERVER_SOURCES) $(LIBS)
 		rm -f $(SERVER_OBJS)
 
+debug: CFLAGS += $(DEBUG)
+debug: main
+
 .PHONY : all clean
