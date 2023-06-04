@@ -36,7 +36,7 @@ void finish(struct parser_event *ret, const uint8_t c) {
 
 
 // parser hecho con parser.c
-void main() {
+void set_up_parser() {
     size_t states_n[STATES_COUNT];
     const struct parser_state_transition *states[STATES_COUNT];
 
@@ -90,6 +90,7 @@ void main() {
 
     struct parser * pars = parser_init(&pars_def);
 
+/*
     char * string = "Hola Como Va?\r\nHola como va?\r\njajajaja\r\n";
 
     int i = 0;
@@ -105,7 +106,7 @@ void main() {
         printf("Command: %s\nFirst Arg: %s\nSecond Arg: %s\nfinished? %s\n", event->args[0], (event->args[1]!=NULL)? event->args[1] : "NOTHING", (event->args[2]!=NULL)? event->args[2] : "NOTHING", (event->finished)? "Yes" : "Nope");
         event = event->next;
     }
-
+*/
     
 }
 
