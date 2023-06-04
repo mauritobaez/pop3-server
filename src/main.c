@@ -24,6 +24,7 @@
 
 #define MAX_SOCKETS 1000
 
+#define COMMAND_COUNT 10
 static char addrBuffer[1000];
 
 //TODO: dudoso el array de structs
@@ -34,14 +35,73 @@ void log_socket(socket_handler socket) {
     log(DEBUG, "socket: %d, occupied: %d, try_read: %d, try_write: %d", socket.fd, socket.occupied, socket.try_read, socket.try_write);
 }
 
-// int handle_pop3_client(...) {
-//     /*
-//         if read -> puedo escribir
-//         if puedo escribir -> chequeo si puedo escribir y return
-//         si por poll puedo escribir, escribo
-//     */
+typedef struct command_t {
+    void (*command_handler)(command_t* command_state);
+    FILE* file;
+    command_type_t type;
+}command_t;
 
-// }
+typedef struct command_info
+{
+    char* name
+    void (*command_handler)(command_t* command_state);
+    
+} command_info;
+
+command_info commands[COMMAND_COUNT] = {};
+
+int handle_pop3_client(void *index, bool can_read, bool can_write) {
+    int i = *(int*) index;
+    socket_handler* socket = &sockets[i];
+    //|---> commands to process (cola command_t)
+    /*
+        struct command_t {
+            command_type_t (enum) type;
+            file* file;
+            char answer; = malloc()
+
+            long index;
+        }
+    */
+    if(can_write) {
+        /*
+            leer del buffer e ir mandando con send() hasta que no pueda más
+            if( se vacio el buffer)
+                try_write = false;
+
+            proceso todos los comandos que queden
+            foreach(comando de commands to process (hago peek)) {
+                switch(strmcp(comando, coso))
+                    if(hay espacio en buffer)
+                        hago dequeue
+                        comando_handler();
+                    else
+                        break;
+
+            }
+        */
+    }
+    if(can_read) {
+        /*
+            ir leyendo de la entrada con recv y mandarselo al parser
+            preguntarle al parser qué comandos enteros hay
+            foreach(comando de los eventos del parser) {
+                switch(strmcp(comando, coso))
+                    if(espacio en buffer > 512)
+                        comando_handler();
+                    else
+                        enqueue(commands to process);
+
+            }
+
+            comando_handler(command_t* command_state) {
+                
+                //al final
+                try_write = true;
+            }
+        */
+    }
+}
 
 void free_client_socket(int socket) {
     
@@ -70,58 +130,7 @@ socket_handler* get_socket_handler(int socket) {
 }
 
 
-// blocking connection
-int handle_tcp_echo_client(void *index, bool canRead, bool canWrite)
-{
-    int sock_index = *(int*) index;
-    if (canWrite) {
-        socket_handler* status = &sockets[sock_index];
-        send(status->fd, "hola", 5, 0);
-        status->try_write = false;
-        log(DEBUG, "closed client %d", status->fd);
-        free_client_socket(status->fd);
-    }
-    // yield -> quiero escuchar
-    // yield -> quiero escribir
 
-    // {
-    //     char buffer[BUFSIZE]; // Buffer for echo string
-    //     // Receive message from client
-    //     ssize_t numBytesRcvd = recv(state->socket_state->fd, buffer, BUFSIZE, 0);
-
-    //     if (numBytesRcvd < 0)
-    //     {
-    //         log(ERROR, "recv() failed", "");
-    //         return -1; // TODO definir codigos de error
-    //     }
-
-    //     // Send received string and receive again until end of stream
-    //     while (numBytesRcvd > 0)
-    //     { // 0 indicates end of stream
-    //         // Echo message back to client
-    //         ssize_t numBytesSent = send(state->socket_state->fd, buffer, numBytesRcvd, 0);
-    //         if (numBytesSent < 0)
-    //         {
-    //             log(ERROR, "send() failed", "");
-    //             return -1; // TODO definir codigos de error
-    //         }
-    //         else if (numBytesSent != numBytesRcvd)
-    //         {
-    //             log(ERROR, "send() sent unexpected number of bytes ", "");
-    //             return -1; // TODO definir codigos de error
-    //         }
-
-    //         // See if there is more data to receive
-    //         numBytesRcvd = recv(state->sock, buffer, BUFSIZE, 0);
-    //         if (numBytesRcvd < 0)
-    //         {
-    //             log(ERROR, "recv() failed", "");
-    //             return -1; // TODO definir codigos de error
-    //         }
-    //     }
-
-    return 0;
-}
 
 int setup_passive_socket(char *socket_num)
 {

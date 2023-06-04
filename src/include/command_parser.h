@@ -1,5 +1,7 @@
-
+#ifndef COMMAND_PARSER_H
+#define COMMAND_PARSER_H
 
 // parser hecho con parser.c
-void set_up_parser();
+struct parser * set_up_parser();
 
+#endif
