@@ -105,7 +105,7 @@ void finish_event_item(struct parser * p) {
 void rec_free_event_list(struct parser_event * event) {
     if(event!=NULL) {
         rec_free_event_list(event->next);
-        int i = 0;
+        // int i = 0;
         // Esto no debería estar acá, el CDT no sabe de la forma del event
         // while(i<2) if(event->args[i] != NULL) free(event->args[i]); 
         free(event);

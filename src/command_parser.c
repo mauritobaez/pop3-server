@@ -59,7 +59,7 @@ struct parser * set_up_parser() {
 
     states_n[SECOND_ARGUMENT] = 3;
     struct parser_state_transition second_argument[] = {
-        {.when = ' ', .dest = ERROR, .act1 = NULL},
+        {.when = ' ', .dest = ERROR_STATE, .act1 = NULL},
         {.when = '\r', .dest = ABOUT_TO_FINISH, .act1 = NULL},
         {.when = ANY, .dest = SECOND_ARGUMENT, .act1 = act_write_second_arg} 
     };
@@ -69,16 +69,16 @@ struct parser * set_up_parser() {
     struct parser_state_transition about_to_finish[] = {
         {.when = '\n', .dest = MAIN_COMMAND, .act1 = finish},   //pipelining
         {.when = '\r', .dest = ABOUT_TO_FINISH, .act1 = NULL},
-        {.when = ANY, .dest = ERROR, .act1 = NULL} 
+        {.when = ANY, .dest = ERROR_STATE, .act1 = NULL} 
     };
     states[ABOUT_TO_FINISH] = about_to_finish;
 
-    states_n[ERROR] = 2;
+    states_n[ERROR_STATE] = 2;
     struct parser_state_transition error[] = {
         {.when = '\r', .dest = ABOUT_TO_FINISH, .act1 = NULL},
-        {.when = ANY, .dest = ERROR, .act1 = NULL} /* hay que comer todo lo que siga hasta el \r\n */
+        {.when = ANY, .dest = ERROR_STATE, .act1 = NULL} /* hay que comer todo lo que siga hasta el \r\n */
     };
-    states[ERROR] = error;
+    states[ERROR_STATE] = error;
 
 
     struct parser_definition pars_def = {

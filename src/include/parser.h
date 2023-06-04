@@ -20,7 +20,7 @@ enum parser_states {
     FIRST_ARGUMENT,
     SECOND_ARGUMENT,
     ABOUT_TO_FINISH,
-    ERROR
+    ERROR_STATE
 };
 
 /**
