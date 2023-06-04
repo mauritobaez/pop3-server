@@ -13,18 +13,25 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#define STATES_COUNT 5
+
+enum parser_states {
+    MAIN_COMMAND,
+    FIRST_ARGUMENT,
+    SECOND_ARGUMENT,
+    ABOUT_TO_FINISH,
+    ERROR
+};
+
 /**
  * Evento que retorna el parser.
  * Cada tipo de evento tendrá sus reglas en relación a data.
  */
 struct parser_event
 {
-    /** tipo de evento */
-    unsigned type;
-    /** caracteres asociados al evento */
-    uint8_t data[3];
-    /** cantidad de datos en el buffer `data' */
-    uint8_t n;
+    char* args[3];
+    uint8_t finished;
+    uint16_t index;
 
     /** lista de eventos: si es diferente de null ocurrieron varios eventos */
     struct parser_event *next;
@@ -39,8 +46,7 @@ struct parser_state_transition
     unsigned dest;
     /** acción 1 que se ejecuta cuando la condición es verdadera. requerida. */
     void (*act1)(struct parser_event *ret, const uint8_t c);
-    /** otra acción opcional */
-    void (*act2)(struct parser_event *ret, const uint8_t c);
+
 };
 
 /** predicado para utilizar en `when' que retorna siempre true */
@@ -63,11 +69,9 @@ struct parser_definition
 /**
  * inicializa el parser.
  *
- * `classes`: caracterización de cada caracter (256 elementos)
  */
 struct parser *
-parser_init(const unsigned *classes,
-            const struct parser_definition *def);
+parser_init(const struct parser_definition *def);
 
 /** destruye el parser */
 void parser_destroy(struct parser *p);
@@ -80,25 +84,25 @@ void parser_reset(struct parser *p);
  * de parsing. Los eventos son reusado entre llamadas por lo que si se desea
  * capturar los datos se debe clonar.
  */
-const struct parser_event *
+struct parser_event *
 parser_feed(struct parser *p, const uint8_t c);
 
-/**
- * En caso de la aplicacion no necesite clases caracteres, se
- * provee dicho arreglo para ser usando en `parser_init'
- */
-const unsigned *
-parser_no_classes(void);
+// hay que llamarlo cuando finaliza
+void finish_event_item(struct parser * p);
 
-// typedef struct joined_parser
-// {
-//     struct parser **parsers;
-//     size_t n;
-// } joined_parser_t;
+struct parser_event * get_event_list(struct parser * p);
 
-// joined_parser_t join_parsers(int count, ...);
-// struct parser_event *feed_joined_parser(joined_parser_t parsers, const uint8_t c);
-// void destroy_joined_parsers(joined_parser_t parsers);
-// void reset_joined_parsers(joined_parser_t parsers);
+void free_event_list(struct parser * p);
+
+typedef struct joined_parser
+{
+    struct parser **parsers;
+    size_t n;
+} joined_parser_t;
+
+joined_parser_t join_parsers(int count, ...);
+struct parser_event *feed_joined_parser(joined_parser_t parsers, const uint8_t c);
+void destroy_joined_parsers(joined_parser_t parsers);
+void reset_joined_parsers(joined_parser_t parsers);
 
 #endif

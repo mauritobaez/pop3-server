@@ -4,23 +4,24 @@
 #include <assert.h>
 #include <stdarg.h>
 
+
 #include "parser.h"
 
 /* CDT del parser */
 struct parser
 {
-    /** tipificación para cada caracter */
-    const unsigned *classes;
+
     /** definición de estados */
-    const struct parser_definition *def;
+    const struct parser_definition *def; 
 
     /* estado actual */
     unsigned state;
 
     /* evento que se retorna */
-    struct parser_event e1;
-    /* evento que se retorna */
-    struct parser_event e2;
+    struct parser_event * e1;
+
+    struct parser_event * list;
+
 };
 
 void parser_destroy(struct parser *p)
@@ -32,16 +33,16 @@ void parser_destroy(struct parser *p)
 }
 
 struct parser *
-parser_init(const unsigned *classes,
-            const struct parser_definition *def)
+parser_init(const struct parser_definition *def)
 {
     struct parser *ret = malloc(sizeof(*ret));
     if (ret != NULL)
     {
         memset(ret, 0, sizeof(*ret));
-        ret->classes = classes;
         ret->def = def;
         ret->state = def->start_state;
+        ret->e1 = calloc(1, sizeof(struct parser_event));
+        ret->list = NULL;
     }
     return ret;
 }
@@ -51,13 +52,9 @@ void parser_reset(struct parser *p)
     p->state = p->def->start_state;
 }
 
-const struct parser_event *
+struct parser_event *
 parser_feed(struct parser *p, const uint8_t c)
 {
-    const unsigned type = p->classes[c];
-
-    p->e1.next = p->e2.next = 0;
-
     const struct parser_state_transition *state = p->def->states[p->state];
     const size_t n = p->def->states_n[p->state];
     bool matched = false;
@@ -73,10 +70,6 @@ parser_feed(struct parser *p, const uint8_t c)
         {
             matched = true;
         }
-        else if (state[i].when > 0xFF)
-        {
-            matched = (type & when);
-        }
         else
         {
             matched = false;
@@ -84,71 +77,88 @@ parser_feed(struct parser *p, const uint8_t c)
 
         if (matched)
         {
-            state[i].act1(&p->e1, c);
-            if (state[i].act2 != NULL)
-            {
-                p->e1.next = &p->e2;
-                state[i].act2(&p->e2, c);
-            }
+            if(state[i].act1!=NULL)
+                state[i].act1(p->e1, c);
             p->state = state[i].dest;
             break;
         }
     }
-    return &p->e1;
+    return p->e1;
 }
 
-static const unsigned classes[0xFF] = {0x00};
+struct parser_event * get_event_list(struct parser * p) {
+    return p->list;
+}
 
-const unsigned *
-parser_no_classes(void)
+void finish_event_item(struct parser * p) {
+    struct parser_event * aux = p->list;
+    if(aux==NULL)
+        p->list = p->e1;
+    else {
+        while (aux->next!=NULL) aux = aux->next;
+        aux->next = p->e1;
+    }
+    p->e1 = calloc(1, sizeof(struct parser_event));
+}
+
+
+void rec_free_event_list(struct parser_event * event) {
+    if(event!=NULL) {
+        rec_free_event_list(event->next);
+        int i = 0;
+        // Esto no debería estar acá, el CDT no sabe de la forma del event
+        // while(i<2) if(event->args[i] != NULL) free(event->args[i]); 
+        free(event);
+    }
+}
+
+void free_event_list(struct parser * p) {
+    rec_free_event_list(p->list);
+    free(p->e1);
+}
+
+
+/*
+joined_parser_t join_parsers(int count, ...)
 {
-    return classes;
+    va_list ap;
+    va_start(ap, count);
+    joined_parser_t final_parser;
+    final_parser.n = count;
+    final_parser.parsers = malloc(count * sizeof(struct parser *));
+
+    struct parser *currentParser;
+    for (int i = 0; i < count; i += 1)
+    {
+        final_parser.parsers[i] = va_arg(ap, struct parser *);
+    }
+    return final_parser;
 }
 
-int max(int x, int y)
+struct parser_event *feed_joined_parser(joined_parser_t parsers, const uint8_t c)
 {
-    return (x > y) ? x : y;
+    struct parser_event *events = malloc(sizeof(struct parser_event) * parsers.n);
+    for (int i = 0; i < parsers.n; i += 1)
+    {
+        events[i] = *parser_feed(parsers.parsers[i], c);
+    }
+    return events;
 }
 
-// joined_parser_t join_parsers(int count, ...)
-// {
-//     va_list ap;
-//     va_start(ap, count);
-//     joined_parser_t final_parser;
-//     final_parser.n = count;
-//     final_parser.parsers = malloc(count * sizeof(struct parser *));
+void destroy_joined_parsers(joined_parser_t parsers)
+{
+    for (int i = 0; i < parsers.n; i += 1)
+    {
+        parser_destroy(parsers.parsers[i]);
+    }
+    free(parsers.parsers);
+}
 
-//     struct parser *currentParser;
-//     for (int i = 0; i < count; i += 1)
-//     {
-//         final_parser.parsers[i] = va_arg(ap, struct parser *);
-//     }
-//     return final_parser;
-// }
-
-// struct parser_event *feed_joined_parser(joined_parser_t parsers, const uint8_t c)
-// {
-//     struct parser_event *events = malloc(sizeof(struct parser_event) * parsers.n);
-//     for (int i = 0; i < parsers.n; i += 1)
-//     {
-//         events[i] = *parser_feed(parsers.parsers[i], c);
-//     }
-//     return events;
-// }
-
-// void destroy_joined_parsers(joined_parser_t parsers)
-// {
-//     for (int i = 0; i < parsers.n; i += 1)
-//     {
-//         parser_destroy(parsers.parsers[i]);
-//     }
-//     free(parsers.parsers);
-// }
-
-// void reset_joined_parsers(joined_parser_t parsers)
-// {
-//     for (int i = 0; i < parsers.n; i += 1)
-//     {
-//         parser_reset(parsers.parsers[i]);
-//     }
-// }
+void reset_joined_parsers(joined_parser_t parsers)
+{
+    for (int i = 0; i < parsers.n; i += 1)
+    {
+        parser_reset(parsers.parsers[i]);
+    }
+}
+*/
