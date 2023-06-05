@@ -1,103 +1,100 @@
-/**
- * buffer.c - buffer con acceso directo (útil para I/O) que mantiene
- *            mantiene puntero de lectura y de escritura.
- */
-#include <string.h>
-#include <stdint.h>
-#include <assert.h>
-
 #include "buffer.h"
+#include <stdlib.h>
+#include <string.h>
+#include "logger.h"
 
-inline void
-buffer_reset(buffer *b) {
-    b->read  = b->data;
-    b->write = b->data;
-}
+struct buffer_cdt {
+    char *memstart;
+    size_t max_size;
+    char *read_ptr;
+    char *write_ptr;
+};
 
-void
-buffer_init(buffer *b, const size_t n, uint8_t *data) {
-    b->data = data;
-    buffer_reset(b);
-    b->limit = b->data + n;
-}
-
-
-inline bool
-buffer_can_write(buffer *b) {
-    return b->limit - b->write > 0;
-}
-
-inline uint8_t *
-buffer_write_ptr(buffer *b, size_t *nbyte) {
-    assert(b->write <= b->limit);
-    *nbyte = b->limit - b->write;
-    return b->write;
-}
-
-inline bool
-buffer_can_read(buffer *b) {
-    return b->write - b->read > 0;
-}
-
-inline uint8_t *
-buffer_read_ptr(buffer *b, size_t *nbyte) {
-    assert(b->read <= b->write);
-    *nbyte = b->write - b->read;
-    return b->read;
-}
-
-inline void
-buffer_write_adv(buffer *b, const ssize_t bytes) {
-    if(bytes > -1) {
-        b->write += (size_t) bytes;
-        assert(b->write <= b->limit);
-    }
-}
-
-inline void
-buffer_read_adv(buffer *b, const ssize_t bytes) {
-    if(bytes > -1) {
-        b->read += (size_t) bytes;
-        assert(b->read <= b->write);
-
-        if(b->read == b->write) {
-            // compactacion poco costosa
-            buffer_compact(b);
+buffer_t buffer_init(const size_t size) {
+    buffer_t buffer = (buffer_t) malloc(sizeof(struct buffer_cdt));
+    if (buffer != NULL) {
+        buffer->memstart = (char *)malloc((size + 1) * sizeof(char));
+        if (buffer->memstart != NULL) {
+            buffer->max_size = size;
+            buffer_clean(buffer);
+        } else {
+            free(buffer);
+            buffer = NULL;
         }
     }
+    return buffer;
 }
 
-inline uint8_t
-buffer_read(buffer *b) {
-    uint8_t ret;
-    if(buffer_can_read(b)) {
-        ret = *b->read;
-        buffer_read_adv(b, 1);
+size_t buffer_write_and_advance(buffer_t buffer, char* string, size_t nbytes) {
+    size_t available_size = buffer_available_space(buffer); 
+
+    if (available_size == 0 || nbytes == 0)
+        return 0;
+
+    size_t space_to_end = buffer->memstart + buffer->max_size - buffer->write_ptr;
+
+    if (nbytes > available_size) {
+        nbytes = available_size;
+    }
+
+    if (nbytes > space_to_end) {
+        memcpy(buffer->write_ptr, string, space_to_end);
+        memcpy(buffer->memstart, string + space_to_end, nbytes - space_to_end);
     } else {
-        ret = 0;
+        memcpy(buffer->write_ptr, string, nbytes);
     }
-    return ret;
+
+    buffer->write_ptr += nbytes;
+    if (buffer->write_ptr >= buffer->memstart + buffer->max_size) {
+        buffer->write_ptr -= buffer->max_size;
+    }
+    return nbytes;
 }
 
-inline void
-buffer_write(buffer *b, uint8_t c) {
-    if(buffer_can_write(b)) {
-        *b->write = c;
-        buffer_write_adv(b, 1);
-    }
-}
+size_t buffer_read(buffer_t buffer, char* string, size_t nbytes) {
+    size_t available_chars = buffer_available_chars_count(buffer);
+    if(available_chars == 0 || nbytes == 0)
+        return 0;
 
-void
-buffer_compact(buffer *b) {
-    if(b->data == b->read) {
-        // nada por hacer
-    } else if(b->read == b->write) {
-        b->read  = b->data;
-        b->write = b->data;
+    if (nbytes > available_chars) {
+        nbytes = available_chars;
+    }
+
+    size_t space_to_end = buffer->memstart + buffer->max_size - buffer->read_ptr;
+    if (nbytes > space_to_end) {
+        memcpy(string, buffer->read_ptr, space_to_end);
+        memcpy(string + space_to_end, buffer->memstart, nbytes - space_to_end);
     } else {
-        const size_t n = b->write - b->read;
-        memmove(b->data, b->read, n);
-        b->read  = b->data;
-        b->write = b->data + n;
+        memcpy(string, buffer->read_ptr, nbytes);
     }
+
+    string[nbytes] = '\0';
+    
+    return nbytes;
+}
+
+void buffer_advance_read(buffer_t buffer, size_t nbytes) {
+    buffer->read_ptr += nbytes;
+    if (buffer->read_ptr >= buffer->memstart + buffer->max_size) {
+        buffer->read_ptr -= buffer->max_size;
+    }
+}
+
+void buffer_clean(buffer_t buffer) {
+    buffer->read_ptr = buffer->write_ptr = buffer->memstart;
+}
+
+size_t buffer_available_space(buffer_t buffer) {
+    ssize_t ptr_diff = buffer->write_ptr - buffer->read_ptr;
+    return (ptr_diff >= 0) ? buffer->max_size - (size_t) ptr_diff : (size_t) ptr_diff - 1;
+}
+
+size_t buffer_available_chars_count(buffer_t buffer) {
+    ssize_t ptr_diff = buffer->write_ptr - buffer->read_ptr;
+    return (ptr_diff >= 0) ? (size_t) ptr_diff : buffer->max_size - (size_t) ptr_diff + 1;
+}
+
+void buffer_free(buffer_t buffer) {
+    free(buffer->memstart);
+    free(buffer);
 }

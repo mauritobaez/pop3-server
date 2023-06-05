@@ -26,7 +26,7 @@ int main(int argc, char *argv[])
     while (1)
     {
         unsigned int total_poll_fds = current_socket_count;
-        log(DEBUG, "current socket-size %d\n", current_socket_count);
+        log(DEBUG, "current socket-count: %d\n", current_socket_count);
         if(total_poll_fds == 0 || total_poll_fds > MAX_SOCKETS) {
             log(FATAL, "unexpected error: invalid socket count (%d)", total_poll_fds);
         }
