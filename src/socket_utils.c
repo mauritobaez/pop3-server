@@ -90,7 +90,9 @@ void free_client_socket(int socket) {
         if (sockets[i].fd == socket)
         {
             sockets[i].occupied = false;
-            free_queue(sockets[i].pop3_client_info->pending_commands);
+            if(sockets[i].pop3_client_info->pending_command != NULL) {
+                //TODO: free command
+            }
             if(sockets[i].writing_buffer != NULL)
                 buffer_free(sockets[i].writing_buffer);
             current_socket_count -= 1;

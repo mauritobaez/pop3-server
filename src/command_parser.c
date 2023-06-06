@@ -116,25 +116,6 @@ struct parser * set_up_parser() {
     return parser_init(pars_def);
 }
 
-
-
-/*
-    char * string = "Hola Como Va?\r\nHola como va?\r\njajajaja\r\n";
-
-    int i = 0;
-    while(string[i]) {
-        if(parser_feed(pars, string[i++])->finished)
-            finish_event_item(pars);
-    }
-
-    struct parser_event * event = get_event_list(pars);
-    i = 0;
-    while(event!=NULL) {
-        printf("\n\nCommand number: %d\n", i++);
-        printf("Command: %s\nFirst Arg: %s\nSecond Arg: %s\nfinished? %s\n", event->args[0], (event->args[1]!=NULL)? event->args[1] : "NOTHING", (event->args[2]!=NULL)? event->args[2] : "NOTHING", (event->finished)? "Yes" : "Nope");
-        event = event->next;
-    }
-*/
 char* str_to_upper(char* str) {
 	char* aux = str;
 	while (*aux) {

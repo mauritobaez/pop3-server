@@ -101,11 +101,18 @@ struct parser_event * get_event_list(struct parser * p) {
     return aux;
 }
 
+struct parser_event * get_last_event(struct parser * p) {
+    struct parser_event * aux = p->list;
+    if(aux != NULL) {
+        p->list = aux->next;
+    }
+    return aux;
+}
+
 void finish_event_item(struct parser * p) {
     struct parser_event * aux = p->list;
-    if(aux==NULL) {
+    if(aux==NULL)
         p->list = p->e1;
-    }
     else {
         while (aux->next!=NULL) aux = aux->next;
         aux->next = p->e1;
@@ -117,9 +124,6 @@ void finish_event_item(struct parser * p) {
 void rec_free_event_list(struct parser_event * event) {
     if(event!=NULL) {
         rec_free_event_list(event->next);
-        // int i = 0;
-        // Esto no debería estar acá, el CDT no sabe de la forma del event
-        // while(i<2) if(event->args[i] != NULL) free(event->args[i]); 
         free(event);
     }
 }

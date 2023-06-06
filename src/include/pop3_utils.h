@@ -11,7 +11,7 @@
 
 typedef struct command_t command_t;
 
-typedef enum {NOOP,USER,PASS,QUIT,STAT,LIST,RETR,DELE,RSET,CAPA} command_type_t;
+typedef enum {INVALID,NOOP,USER,PASS,QUIT,STAT,LIST,RETR,DELE,RSET,CAPA} command_type_t;
 
 struct command_t {
     command_t* (*command_handler)(command_t* command_state, buffer_t buffer);
@@ -38,12 +38,12 @@ typedef enum
 
 typedef struct pop3_client {
     pop3_state current_state;
-    queue_t pending_commands;
+    command_t* pending_command;
     struct parser* parser_state;
 } pop3_client;
 
 
-
+// devuelve -1 si hubo un error
 int handle_pop3_client(void *index, bool can_read, bool can_write);
 int accept_pop3_connection(void *index, bool can_read, bool can_write);
 
