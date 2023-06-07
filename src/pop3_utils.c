@@ -19,25 +19,26 @@
 } while (0)
 
 
-command_t* handle_noop(command_t* command_state, buffer_t buffer);
-command_t* handle_user_command(command_t* command_state, buffer_t buffer);
-command_t* handle_invalid_command(command_t* command_state, buffer_t buffer);
-command_t* handle_greeting_command(command_t* command_state, buffer_t buffer);
+command_t* handle_noop(command_t* command_state, buffer_t buffer, state_t* new_state);
+command_t* handle_user_command(command_t* command_state, buffer_t buffer, state_t* new_state);
+command_t* handle_pass_command(command_t* command_state, buffer_t buffer, state_t* new_state);
+command_t* handle_invalid_command(command_t* command_state, buffer_t buffer, state_t* new_state);
+command_t* handle_greeting_command(command_t* command_state, buffer_t buffer, state_t* new_state);
 
 void free_command (command_t* command);
 void free_event (struct parser_event* event, bool free_arguments);
 
 command_info commands[COMMAND_COUNT] = {
-    {.name = "NOOP", .command_handler = (command_t* (*)(command_t *, buffer_t)) & handle_noop,          .type = NOOP,   .valid_states = TRANSACTION},
-    {.name = "USER", .command_handler = (command_t* (*)(command_t *, buffer_t)) & handle_user_command,  .type = USER,   .valid_states = AUTHORIZATION},
-    {.name = "PASS", .command_handler = (command_t* (*)(command_t *, buffer_t)) & handle_noop,          .type = PASS,   .valid_states = AUTHORIZATION},
-    {.name = "QUIT", .command_handler = (command_t* (*)(command_t *, buffer_t)) & handle_noop,          .type = QUIT,   .valid_states = AUTHORIZATION | TRANSACTION},
-    {.name = "STAT", .command_handler = (command_t* (*)(command_t *, buffer_t)) & handle_noop,          .type = STAT,   .valid_states = TRANSACTION},
-    {.name = "LIST", .command_handler = (command_t* (*)(command_t *, buffer_t)) & handle_noop,          .type = LIST,   .valid_states = TRANSACTION},
-    {.name = "RETR", .command_handler = (command_t* (*)(command_t *, buffer_t)) & handle_noop,          .type = RETR,   .valid_states = TRANSACTION},
-    {.name = "DELE", .command_handler = (command_t* (*)(command_t *, buffer_t)) & handle_noop,          .type = DELE,   .valid_states = TRANSACTION},
-    {.name = "RSET", .command_handler = (command_t* (*)(command_t *, buffer_t)) & handle_noop,          .type = RSET,   .valid_states = TRANSACTION},
-    {.name = "CAPA", .command_handler = (command_t* (*)(command_t *, buffer_t)) & handle_noop,          .type = CAPA,   .valid_states = AUTHORIZATION | TRANSACTION}
+    {.name = "NOOP", .command_handler = (command_handler) & handle_noop,          .type = NOOP,   .valid_states = TRANSACTION},
+    {.name = "USER", .command_handler = (command_handler) & handle_user_command,  .type = USER,   .valid_states = AUTH_PRE_USER},
+    {.name = "PASS", .command_handler = (command_handler) & handle_pass_command,  .type = PASS,   .valid_states = AUTH_POST_USER},
+    {.name = "QUIT", .command_handler = (command_handler) & handle_noop,          .type = QUIT,   .valid_states = AUTH_PRE_USER | AUTH_POST_USER | TRANSACTION},
+    {.name = "STAT", .command_handler = (command_handler) & handle_noop,          .type = STAT,   .valid_states = TRANSACTION},
+    {.name = "LIST", .command_handler = (command_handler) & handle_noop,          .type = LIST,   .valid_states = TRANSACTION},
+    {.name = "RETR", .command_handler = (command_handler) & handle_noop,          .type = RETR,   .valid_states = TRANSACTION},
+    {.name = "DELE", .command_handler = (command_handler) & handle_noop,          .type = DELE,   .valid_states = TRANSACTION},
+    {.name = "RSET", .command_handler = (command_handler) & handle_noop,          .type = RSET,   .valid_states = TRANSACTION},
+    {.name = "CAPA", .command_handler = (command_handler) & handle_noop,          .type = CAPA,   .valid_states = AUTH_PRE_USER | AUTH_POST_USER | TRANSACTION}
 };
 
 int handle_pop3_client(void *index, bool can_read, bool can_write) {
@@ -64,7 +65,7 @@ int handle_pop3_client(void *index, bool can_read, bool can_write) {
         //ahora que hicimos lugar en el buffer, intentamos resolver el comando que haya quedado pendiente
         if(socket->pop3_client_info->pending_command != NULL) {
             command_t* old_pending_command = socket->pop3_client_info->pending_command;
-            socket->pop3_client_info->pending_command = old_pending_command->command_handler(old_pending_command, socket->writing_buffer);
+            socket->pop3_client_info->pending_command = old_pending_command->command_handler(old_pending_command, socket->writing_buffer, &(socket->pop3_client_info->current_state));
             socket->try_write = true;
             free(old_pending_command);
         }
@@ -106,7 +107,7 @@ int handle_pop3_client(void *index, bool can_read, bool can_write) {
             if(event->args[0] != NULL) {
                 str_to_upper(event->args[0]);
                 for(int i = 0; i < COMMAND_COUNT && !found_command; i++) {
-                    if(strcmp(event->args[0], commands[i].name) == 0) {
+                    if(((commands[i].valid_states & socket->pop3_client_info->current_state) > 0) && strcmp(event->args[0], commands[i].name) == 0) {
                         found_command = true;
                         command_t command_state = {
                             .type = commands[i].type, 
@@ -119,7 +120,7 @@ int handle_pop3_client(void *index, bool can_read, bool can_write) {
                     
                         log(DEBUG, "Command %s received with args %s and %s\n", event->args[0], event->args[1], event->args[2]);
 
-                        socket->pop3_client_info->pending_command = command_state.command_handler(&command_state, socket->writing_buffer);
+                        socket->pop3_client_info->pending_command = command_state.command_handler(&command_state, socket->writing_buffer, &(socket->pop3_client_info->current_state));
                         socket->try_write = true;
                         free_event(event, false);
                     }
@@ -128,14 +129,14 @@ int handle_pop3_client(void *index, bool can_read, bool can_write) {
             if(!found_command) {
                 command_t command_state = {
                         .type = INVALID, 
-                        .command_handler = (command_t* (*)(command_t *, buffer_t)) & handle_invalid_command, 
+                        .command_handler = (command_handler) & handle_invalid_command, 
                         .args[0] = NULL,
                         .args[1] = NULL,
                         .answer = NULL,
                         .index = 0
                         };
                 log(DEBUG, "Invalid command %s received\n", event->args[0]);
-                socket->pop3_client_info->pending_command = command_state.command_handler(&command_state, socket->writing_buffer);
+                socket->pop3_client_info->pending_command = command_state.command_handler(&command_state, socket->writing_buffer, &(socket->pop3_client_info->current_state));
                 socket->try_write = true;
                 free_event(event, true);
             }
@@ -171,20 +172,25 @@ int accept_pop3_connection(void *index, bool can_read, bool can_write)
                 sockets[i].fd = client_socket;
                 sockets[i].occupied = true;
                 sockets[i].handler = (int (*)(void *, bool, bool)) & handle_pop3_client;
-                sockets[i].try_write = true;
                 sockets[i].try_read = true;
                 sockets[i].pop3_client_info = malloc(sizeof(pop3_client));
-                sockets[i].pop3_client_info->current_state = AUTHORIZATION;
-
-                // GREETING
-                // VER COMO MANEJAR MEMORY LEAK
-                command_t* greeting_state = calloc(1, sizeof(command_t));
-                greeting_state->type = GREETING;
-                greeting_state->command_handler = (command_handler)& handle_greeting_command;
-                sockets[i].pop3_client_info->pending_command = greeting_state;
+                sockets[i].pop3_client_info->current_state = AUTH_PRE_USER;
                 sockets[i].pop3_client_info->parser_state = set_up_parser();
                 sockets[i].writing_buffer = buffer_init(BUFFER_SIZE);
                 current_socket_count += 1;
+
+                // GREETING
+                command_t greeting_state = {
+                    .type = GREETING,
+                    .command_handler = (command_handler)& handle_greeting_command,
+                    .args[0] = NULL,
+                    .args[1] = NULL,
+                    .answer = NULL,
+                    .index = 0
+                };
+
+                sockets[i].pop3_client_info->pending_command = handle_greeting_command(&greeting_state, sockets[i].writing_buffer, &(sockets[i].pop3_client_info->current_state));
+                sockets[i].try_write = true;
                 return 0;
             }
         }
@@ -195,12 +201,14 @@ int accept_pop3_connection(void *index, bool can_read, bool can_write)
 
 command_t* handle_simple_command(command_t* command_state, buffer_t buffer, char* answer) {
     command_t* command = malloc(sizeof(command_t));
+    if(command == NULL) log_error(FATAL, "Error handling command", command);
     if(command_state->answer == NULL) {
         if(answer == NULL) {
             log(FATAL, "Unexpected error \n%s", "");
         }
         size_t length = strlen(answer);
         command->answer = malloc(length + 1);
+        if(command->answer == NULL) log_error(FATAL, "Error handling command", command);
         strncpy(command->answer, answer, length + 1);
     } else {
         command->answer = command_state->answer;
@@ -222,16 +230,30 @@ command_t* handle_simple_command(command_t* command_state, buffer_t buffer, char
     return command;
 }
 
-command_t* handle_user_command(command_t* command_state, buffer_t buffer) {
+command_t* handle_user_command(command_t* command_state, buffer_t buffer, state_t* new_state) {
     char* answer = NULL;
     if(command_state->answer == NULL) {
         /* lógica de USER para saber cual es answer */
-        answer = "HOLA MANOLA :)\n";
+        answer = "ahora pone PASS :)\n";
+        /* si el USER estaba bien: */
+        *new_state = AUTH_POST_USER;        
     }
     return handle_simple_command(command_state, buffer, answer);
 }
 
-command_t* handle_greeting_command(command_t* command_state, buffer_t buffer) {
+command_t* handle_pass_command(command_t* command_state, buffer_t buffer, state_t* new_state) {
+    char* answer = NULL;
+    if(command_state->answer == NULL) {
+        /* lógica de PASS para saber cual es answer */
+        answer = "Listo el pollo :)\n";
+        /* si el PASS estaba bien: */
+        *new_state = TRANSACTION;  
+        /* sino será lo que corresponda */      
+    }
+    return handle_simple_command(command_state, buffer, answer);
+}
+
+command_t* handle_greeting_command(command_t* command_state, buffer_t buffer, state_t* new_state) {
     char answer[50];
     if (command_state->answer == NULL) {
         sprintf(answer, "%s %s\n", OK_MSG, GREETING_MSG);
@@ -239,11 +261,11 @@ command_t* handle_greeting_command(command_t* command_state, buffer_t buffer) {
     return handle_simple_command(command_state, buffer, answer);
 }
 
-command_t* handle_invalid_command(command_t* command_state, buffer_t buffer) {
+command_t* handle_invalid_command(command_t* command_state, buffer_t buffer, state_t* new_state) {
     return handle_simple_command(command_state, buffer, "-ERR invalid command\r\n");
 }
 
-command_t* handle_noop(command_t* command_state, buffer_t buffer) {
+command_t* handle_noop(command_t* command_state, buffer_t buffer, state_t* new_state) {
     return handle_simple_command(command_state, buffer, "+OK\r\n");
 }
 

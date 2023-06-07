@@ -11,18 +11,20 @@
 #define OK_MSG "+OK"
 #define GREETING_MSG "POP3 preparado perra <pampero.itba.edu.ar>"
 
-#define AUTHORIZATION 0x01
-#define TRANSACTION 0x02
-#define UPDATE 0x04
+#define AUTH_PRE_USER 0x01
+#define AUTH_POST_USER 0x02
+#define TRANSACTION 0x04
+#define UPDATE 0x08
 
-typedef struct command_t command_t;
-typedef command_t* (*command_handler)(command_t *, buffer_t);
 typedef uint8_t state_t;
+typedef struct command_t command_t;
+typedef command_t* (*command_handler)(command_t *, buffer_t, state_t *);
 
-typedef enum {INVALID,NOOP,USER,PASS,QUIT,STAT,LIST,RETR,DELE,RSET,CAPA, GREETING} command_type_t;
+
+typedef enum {INVALID,NOOP,USER,PASS,QUIT,STAT,LIST,RETR,DELE,RSET,CAPA,GREETING} command_type_t;
 
 struct command_t {
-    command_t* (*command_handler)(command_t* command_state, buffer_t buffer);
+    command_t* (*command_handler)(command_t* command_state, buffer_t buffer, state_t* new_state);
     //FILE* file;
     command_type_t type;
     char* answer;
@@ -33,7 +35,7 @@ struct command_t {
 typedef struct command_info
 {
     char* name;
-    command_t* (*command_handler)(command_t* command_state, buffer_t buffer);
+    command_t* (*command_handler)(command_t* command_state, buffer_t buffer, state_t* new_state);
     command_type_t type;
     state_t valid_states;
 } command_info;
