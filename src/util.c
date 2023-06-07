@@ -3,6 +3,7 @@
 #include <string.h>
 #include <arpa/inet.h>
 #include <stdlib.h>
+#include "util.h"
 
 const char *
 printFamily(struct addrinfo *aip)

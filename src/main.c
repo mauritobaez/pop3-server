@@ -6,16 +6,14 @@
 #include "socket_utils.h"
 #include "pop3_utils.h"
 #include "logger.h"
-
-
-
+#include "server.h"
 
 #define POP3_PORT "110"
 
-
-
 int main(int argc, char *argv[])
 {
+    server_config config = get_server_config(argc, argv);
+    print_config(config);
     sockets[0].fd = setup_passive_socket(POP3_PORT);
     //TODO: chequear que funcione para IPv4 e IPv6
     sockets[0].handler = (int (*)(void *, bool, bool)) & accept_pop3_connection;
@@ -61,7 +59,17 @@ int main(int argc, char *argv[])
             if (pfds[i].revents == 0)
                 continue;
 
-            log(DEBUG, "Socket %d - revents = %d", i, pfds[i].revents);
+            char* debug_revents[] = {   "NONE",     "POLLIN",   "POLLPRI",  0, 
+                                        "POLLOUT",  0,          0,          0,
+                                        "POLLERR",  0,          0,          0,
+                                        0,          0,          0,          0,
+                                        "POLLHUP",  0,          0,          0,
+                                        0,          0,          0,          0,
+                                        0,          0,          0,          0,
+                                        0,          0,          0,          0,
+                                        "POLLNVAL"};
+
+            log(DEBUG, "Socket %d - revents = %s", i, debug_revents[pfds[i].revents]);
             
             if (pfds[i].revents & POLLERR || pfds[i].revents & POLLNVAL)
             {
@@ -69,11 +77,13 @@ int main(int argc, char *argv[])
             }
             if (pfds[i].revents & POLLHUP)
             {
+                log(ERROR, "user hangup %s\n", strerror(errno));
                 free_client_socket(pfds[i].fd);
-            }
-            if (pfds[i].revents & POLLIN || pfds[i].revents & POLLOUT)
+            } else if (pfds[i].revents & POLLIN || pfds[i].revents & POLLOUT)
             {
-                sockets[socket_index[i]].handler(&socket_index[i], pfds[i].revents & POLLIN, pfds[i].revents & POLLOUT);
+                if (sockets[socket_index[i]].handler(&socket_index[i], pfds[i].revents & POLLIN, pfds[i].revents & POLLOUT) == -1) {
+                    free_client_socket(pfds[i].fd);
+                }
             }
         }
     }
