@@ -12,5 +12,8 @@ void* dequeue(queue_t queue);
 void push(queue_t queue, void* elem);
 unsigned int size(queue_t queue);
 void free_queue(queue_t queue);
+void iterator_to_begin(queue_t queue);
+bool iterator_has_next(queue_t queue);
+void* iterator_next(queue_t queue);
 
 #endif

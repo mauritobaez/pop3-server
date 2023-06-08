@@ -67,10 +67,11 @@ server_config get_server_config(int argc, char *argv[]) {
 void print_config(server_config config) {
     log(INFO, "MAX CONNECTIONS %ld, TIMEOUT %ld\n", config.max_connections, config.polling_timeout);
     size_t queue_size = size(config.users);
-    for (size_t i = 0; i < queue_size; i += 1) {
-        user_t *user = dequeue(config.users);
+    iterator_to_begin(config.users);
+    
+    while(iterator_has_next(config.users)){
+        user_t *user = iterator_next(config.users);
         log(INFO, "USER: %s, PASSWORD: %s\n", user->username, user->password);
-        enqueue(config.users, user);
     }
 }
 

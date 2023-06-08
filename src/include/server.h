@@ -32,6 +32,8 @@ typedef struct argument_t {
     handle_argument handler;
 } argument_t;
 
+extern server_config global_config;
+
 server_config get_server_config(int argc, char *argv[]);
 void free_server_config(server_config config);
 void print_config(server_config config);

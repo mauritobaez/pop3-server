@@ -11,6 +11,7 @@ typedef struct node_t {
 typedef struct queue_cdt{
     node_t* front;
     node_t* rear;
+    node_t* current; //Para el iterador
     unsigned int count;
 } queue_cdt;
 
@@ -19,6 +20,7 @@ queue_t create_queue() {
     queue->front = NULL;
     queue->rear = NULL;
     queue->count = 0;
+    queue->current = NULL;
     return queue;
 }
 
@@ -85,3 +87,18 @@ void free_queue(queue_t queue) {
     
     free(queue);
 }
+void iterator_to_begin(queue_t queue){
+    queue->current = queue->front;
+}
+bool iterator_has_next(queue_t queue){
+    return queue->current != NULL;
+}
+void* iterator_next(queue_t queue){
+    if(queue->current == NULL){
+        return NULL;
+    }
+    void * aux = queue->current->data;
+    queue->current = queue->current->next;
+    return aux;
+}
+

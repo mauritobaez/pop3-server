@@ -10,10 +10,13 @@
 
 #define POP3_PORT "110"
 
+server_config global_config;
+
 int main(int argc, char *argv[])
 {
-    server_config config = get_server_config(argc, argv);
-    print_config(config);
+    global_config = get_server_config(argc, argv);
+    print_config(global_config);
+
     sockets[0].fd = setup_passive_socket(POP3_PORT);
     //TODO: chequear que funcione para IPv4 e IPv6
     sockets[0].handler = (int (*)(void *, bool, bool)) & accept_pop3_connection;
