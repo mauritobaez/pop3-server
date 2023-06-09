@@ -17,6 +17,7 @@ typedef struct server_metrics {
 typedef struct user_t {
     char *username;
     char *password;
+    int lock;
 } user_t;
 
 typedef struct server_config {

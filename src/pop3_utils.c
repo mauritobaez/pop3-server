@@ -11,6 +11,7 @@
 #include "queue.h"
 #include "command_parser.h"
 #include "util.h"
+#include "server.h"
 
 
 #define log_error(error_level, error_message, return_value) do {\
@@ -19,11 +20,11 @@
 } while (0)
 
 
-command_t* handle_noop(command_t* command_state, buffer_t buffer, state_t* new_state);
-command_t* handle_user_command(command_t* command_state, buffer_t buffer, state_t* new_state);
-command_t* handle_pass_command(command_t* command_state, buffer_t buffer, state_t* new_state);
-command_t* handle_invalid_command(command_t* command_state, buffer_t buffer, state_t* new_state);
-command_t* handle_greeting_command(command_t* command_state, buffer_t buffer, state_t* new_state);
+command_t* handle_noop(command_t* command_state, buffer_t buffer, pop3_client* client_state);
+command_t* handle_user_command(command_t* command_state, buffer_t buffer, pop3_client* client_state);
+command_t* handle_pass_command(command_t* command_state, buffer_t buffer, pop3_client* client_state);
+command_t* handle_invalid_command(command_t* command_state, buffer_t buffer, pop3_client* client_state);
+command_t* handle_greeting_command(command_t* command_state, buffer_t buffer, pop3_client* client_state);
 
 void free_command (command_t* command);
 void free_event (struct parser_event* event, bool free_arguments);
@@ -65,7 +66,7 @@ int handle_pop3_client(void *index, bool can_read, bool can_write) {
         //ahora que hicimos lugar en el buffer, intentamos resolver el comando que haya quedado pendiente
         if(socket->pop3_client_info->pending_command != NULL) {
             command_t* old_pending_command = socket->pop3_client_info->pending_command;
-            socket->pop3_client_info->pending_command = old_pending_command->command_handler(old_pending_command, socket->writing_buffer, &(socket->pop3_client_info->current_state));
+            socket->pop3_client_info->pending_command = old_pending_command->command_handler(old_pending_command, socket->writing_buffer, socket->pop3_client_info);
             socket->try_write = true;
             free(old_pending_command);
         }
@@ -120,7 +121,7 @@ int handle_pop3_client(void *index, bool can_read, bool can_write) {
                     
                         log(DEBUG, "Command %s received with args %s and %s\n", event->args[0], event->args[1], event->args[2]);
 
-                        socket->pop3_client_info->pending_command = command_state.command_handler(&command_state, socket->writing_buffer, &(socket->pop3_client_info->current_state));
+                        socket->pop3_client_info->pending_command = command_state.command_handler(&command_state, socket->writing_buffer, socket->pop3_client_info);
                         socket->try_write = true;
                         free_event(event, false);
                     }
@@ -136,7 +137,7 @@ int handle_pop3_client(void *index, bool can_read, bool can_write) {
                         .index = 0
                         };
                 log(DEBUG, "Invalid command %s received\n", event->args[0]);
-                socket->pop3_client_info->pending_command = command_state.command_handler(&command_state, socket->writing_buffer, &(socket->pop3_client_info->current_state));
+                socket->pop3_client_info->pending_command = command_state.command_handler(&command_state, socket->writing_buffer, socket->pop3_client_info);
                 socket->try_write = true;
                 free_event(event, true);
             }
@@ -189,7 +190,7 @@ int accept_pop3_connection(void *index, bool can_read, bool can_write)
                     .index = 0
                 };
 
-                sockets[i].pop3_client_info->pending_command = handle_greeting_command(&greeting_state, sockets[i].writing_buffer, &(sockets[i].pop3_client_info->current_state));
+                sockets[i].pop3_client_info->pending_command = handle_greeting_command(&greeting_state, sockets[i].writing_buffer, sockets[i].pop3_client_info);
                 sockets[i].try_write = true;
                 return 0;
             }
@@ -230,30 +231,52 @@ command_t* handle_simple_command(command_t* command_state, buffer_t buffer, char
     return command;
 }
 
-command_t* handle_user_command(command_t* command_state, buffer_t buffer, state_t* new_state) {
+command_t* handle_user_command(command_t* command_state, buffer_t buffer, pop3_client* client_state) {
     char* answer = NULL;
     if(command_state->answer == NULL) {
         /* lógica de USER para saber cual es answer */
-        answer = "ahora pone PASS :)\n";
-        /* si el USER estaba bien: */
-        *new_state = AUTH_POST_USER;        
+        char * username = command_state->args[0];
+        queue_t list = global_config.users;
+        if(username != NULL){
+            iterator_to_begin(list);
+            while(iterator_has_next(list)){
+                user_t* user = iterator_next(list);
+                if(strcmp(user->username, username) == 0){
+                    client_state->username = user->username;
+                    client_state->expected_password = user->password;
+                    client_state->current_state = AUTH_POST_USER;
+                    answer = "+OK ahora pone la PASS :) \r\n";
+                    break;
+                }
+            }
+        }
+        answer = (client_state->current_state == AUTH_POST_USER)? answer : "-Err quien chota sos? >:( \r\n";
     }
     return handle_simple_command(command_state, buffer, answer);
 }
 
-command_t* handle_pass_command(command_t* command_state, buffer_t buffer, state_t* new_state) {
+command_t* handle_pass_command(command_t* command_state, buffer_t buffer, pop3_client* client_state) {
     char* answer = NULL;
     if(command_state->answer == NULL) {
-        /* lógica de PASS para saber cual es answer */
-        answer = "Listo el pollo :)\n";
-        /* si el PASS estaba bien: */
-        *new_state = TRANSACTION;  
-        /* sino será lo que corresponda */      
+        char* password = command_state->args[0];
+        if(password != NULL){
+            if(strcmp(password,client_state->expected_password) == 0){
+                answer = "+OK Listo el pollo :) \r\n";
+                client_state->current_state = TRANSACTION;
+                //TODO: ACA hacer lo de LOCK para el usuario si no esta disponible pones -ERR unable to lock maildrop 
+                //Y cuanod se haga QUIT liberar el lock
+            }else{
+                client_state->username = NULL;
+                client_state->expected_password = NULL;
+                client_state->current_state = AUTH_PRE_USER;
+            }
+        }
     }
+    answer = (client_state->current_state == TRANSACTION)? answer:"-Err INCORRECTO >:(\r\n";    
     return handle_simple_command(command_state, buffer, answer);
 }
 
-command_t* handle_greeting_command(command_t* command_state, buffer_t buffer, state_t* new_state) {
+command_t* handle_greeting_command(command_t* command_state, buffer_t buffer, pop3_client* client_state) {
     char answer[50];
     if (command_state->answer == NULL) {
         sprintf(answer, "%s %s\n", OK_MSG, GREETING_MSG);
@@ -261,11 +284,11 @@ command_t* handle_greeting_command(command_t* command_state, buffer_t buffer, st
     return handle_simple_command(command_state, buffer, answer);
 }
 
-command_t* handle_invalid_command(command_t* command_state, buffer_t buffer, state_t* new_state) {
+command_t* handle_invalid_command(command_t* command_state, buffer_t buffer, pop3_client* client_state) {
     return handle_simple_command(command_state, buffer, "-ERR invalid command\r\n");
 }
 
-command_t* handle_noop(command_t* command_state, buffer_t buffer, state_t* new_state) {
+command_t* handle_noop(command_t* command_state, buffer_t buffer, pop3_client* client_state) {
     return handle_simple_command(command_state, buffer, "+OK\r\n");
 }
 

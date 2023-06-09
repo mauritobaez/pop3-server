@@ -6,6 +6,7 @@
 #include "buffer.h"
 #include "parser.h"
 
+
 #define COMMAND_COUNT 10
 #define BUFFER_SIZE 1024
 #define OK_MSG "+OK"
@@ -17,14 +18,12 @@
 #define UPDATE 0x08
 
 typedef uint8_t state_t;
-typedef struct command_t command_t;
-typedef command_t* (*command_handler)(command_t *, buffer_t, state_t *);
-
-
 typedef enum {INVALID,NOOP,USER,PASS,QUIT,STAT,LIST,RETR,DELE,RSET,CAPA,GREETING} command_type_t;
-
+typedef struct command_t command_t;
+typedef struct pop3_client pop3_client;
+typedef command_t* (*command_handler)(command_t *, buffer_t, pop3_client *);
 struct command_t {
-    command_t* (*command_handler)(command_t* command_state, buffer_t buffer, state_t* new_state);
+    command_t* (*command_handler)(command_t* command_state, buffer_t buffer, pop3_client* new_state);
     //FILE* file;
     command_type_t type;
     char* answer;
@@ -35,7 +34,7 @@ struct command_t {
 typedef struct command_info
 {
     char* name;
-    command_t* (*command_handler)(command_t* command_state, buffer_t buffer, state_t* new_state);
+    command_t* (*command_handler)(command_t* command_state, buffer_t buffer, pop3_client* new_state);
     command_type_t type;
     state_t valid_states;
 } command_info;
@@ -45,6 +44,8 @@ typedef struct pop3_client {
     state_t current_state;
     command_t* pending_command;
     struct parser* parser_state;
+    char* username;
+    char* expected_password;
 } pop3_client;
 
 
