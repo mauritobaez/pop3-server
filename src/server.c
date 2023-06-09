@@ -69,13 +69,16 @@ server_config get_server_config(int argc, char *argv[]) {
         bool found = false;
         for (int i = 0; i < TOTAL_ARGUMENTS && !found; i += 1) {
             if ((found = strcmp(argv[0], arguments[i].argument) == 0)) {
-                argc -= 1;
-                argv += 1;
-                int arguments_consumed = arguments[i].handler(argc, argv, &config);
+                int arguments_consumed = arguments[i].handler(argc - 1, argv + 1, &config);
                 argc -= arguments_consumed;
                 argv += arguments_consumed;
             }
         }
+        if (!found) {
+            log(FATAL, "%s is not a valid argument\n", argv[0]);
+        }
+        argv += 1;
+        argc -= 1;
     }
     return config;
 }

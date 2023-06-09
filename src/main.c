@@ -2,21 +2,33 @@
 #include <stdbool.h>
 #include <errno.h>
 #include <string.h>
+#include <signal.h>
 
 #include "socket_utils.h"
 #include "pop3_utils.h"
 #include "logger.h"
 #include "server.h"
 
-#define POP3_PORT "110"
+#define POP3_PORT "1110"
 
 server_config global_config;
+
+static bool done = false;
+
+static void
+sigterm_handler(const int signal) {
+    log(INFO, "signal %d, cleaning up and exiting\n",signal);
+    done = true;
+}
+
 
 int main(int argc, char *argv[])
 {
     global_config = get_server_config(argc, argv);
     print_config(global_config);
 
+    signal(SIGTERM, sigterm_handler);
+    signal(SIGINT, sigterm_handler);
     sockets[0].fd = setup_passive_socket(POP3_PORT);
     //TODO: chequear que funcione para IPv4 e IPv6
     sockets[0].handler = (int (*)(void *, bool, bool)) & accept_pop3_connection;
@@ -24,7 +36,7 @@ int main(int argc, char *argv[])
     sockets[0].try_write = false;
     sockets[0].try_read = true;
     
-    while (1)
+    while (!done)
     {
         unsigned int total_poll_fds = current_socket_count;
         log(DEBUG, "current socket-count: %d\n", current_socket_count);

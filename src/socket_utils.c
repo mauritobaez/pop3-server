@@ -7,38 +7,51 @@
 #include <netdb.h>
 #include <string.h>
 #include <errno.h>
+
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <limits.h>
+#include <errno.h>
+#include <signal.h>
+
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/socket.h>  
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+
 #include "logger.h"
 #include "util.h"
 
 
-static char addrBuffer[1000];
 socket_handler sockets[MAX_SOCKETS] = {0};
 unsigned int current_socket_count = 1;
 
 
 int setup_passive_socket(char *socket_num)
 {
-    struct addrinfo addr_criteria;
-    memset(&addr_criteria, 0, sizeof(addr_criteria));
-    addr_criteria.ai_family = AF_INET6;
-    addr_criteria.ai_flags = AI_PASSIVE;
-    addr_criteria.ai_socktype = SOCK_STREAM;
-    addr_criteria.ai_protocol = IPPROTO_TCP;
-
-    struct addrinfo *serv_addr;
-    int ret_val = getaddrinfo(NULL, socket_num, &addr_criteria, &serv_addr);
-    if (ret_val != 0)
-    {
-        log(FATAL, "getaddrinfo() failed %s\n", gai_strerror(ret_val));
-        return -1;
+    unsigned port;
+    char *end = 0;
+    const long sl = strtol(socket_num, &end, 10);
+    if (end == socket_num || '\0' != *end || ((LONG_MIN == sl || LONG_MAX == sl) && ERANGE == errno) || sl < 0 || sl >USHRT_MAX) {
+        log(FATAL, "invalid socket %s\n", socket_num);
     }
-    int serv_sock = socket(serv_addr->ai_family, serv_addr->ai_socktype, serv_addr->ai_protocol);
+    port = sl;
+
+    struct sockaddr_in6 addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin6_family = AF_INET6;
+    addr.sin6_addr = in6addr_any;
+    addr.sin6_port = htons(port);
+
+
+    int serv_sock = socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);
 
     if (serv_sock < 0)
     {
-        log(FATAL, "socket() failed %s : %s\n", printAddressPort(&addr_criteria, addrBuffer), strerror(errno));
-        freeaddrinfo(serv_addr);
-        return -1;
+        log(FATAL, "socket() failed: %s\n", strerror(errno));
+        goto error;
     }
 
     if (setsockopt(serv_sock, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) < 0)
@@ -48,7 +61,7 @@ int setup_passive_socket(char *socket_num)
     }
 
     log(DEBUG, "debug servs_sock %d\n", serv_sock);
-    if (bind(serv_sock, serv_addr->ai_addr, serv_addr->ai_addrlen) < 0)
+    if (bind(serv_sock, (struct sockaddr*) &addr, sizeof(addr)) < 0)
     {
         log(FATAL, "bind failed %s\n", strerror(errno));
         goto error;
@@ -60,8 +73,8 @@ int setup_passive_socket(char *socket_num)
     }
 
     return serv_sock;
+
 error:
-    freeaddrinfo(serv_addr);
     close(serv_sock);
     return -1;
 }
