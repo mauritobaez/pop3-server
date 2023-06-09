@@ -9,8 +9,9 @@
 
 #define COMMAND_COUNT 10
 #define BUFFER_SIZE 1024
-#define OK_MSG "+OK"
+#define OK_MSG "+OK "
 #define GREETING_MSG "POP3 preparado perra <pampero.itba.edu.ar>"
+#define SEPARATOR "\r\n.\r\n"
 
 #define AUTH_PRE_USER 0x01
 #define AUTH_POST_USER 0x02
@@ -39,6 +40,10 @@ typedef struct command_info
     state_t valid_states;
 } command_info;
 
+typedef struct email_file_info {
+    char* filename;
+    size_t octets;
+} email_file_info;
 
 typedef struct pop3_client {
     state_t current_state;
@@ -46,11 +51,14 @@ typedef struct pop3_client {
     struct parser* parser_state;
     char* username;
     char* expected_password;
+    email_file_info* emails;
+    size_t emails_count;
 } pop3_client;
 
 
 // devuelve -1 si hubo un error, loguea el error solo
 int handle_pop3_client(void *index, bool can_read, bool can_write);
 int accept_pop3_connection(void *index, bool can_read, bool can_write);
+void free_client(int index);
 
 #endif

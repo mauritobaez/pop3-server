@@ -5,14 +5,17 @@
 
 /*
 -u user:pass -u user:pass
+-m <maildir>
 */
 
 #define TOTAL_ARGUMENTS 1
 
 int handle_user(int argc, char *arg[], server_config* config);
+int handle_mail(int argc, char *arg[], server_config* config);
 
 argument_t arguments[TOTAL_ARGUMENTS] = {
-    {.argument = "-u", .handler = handle_user}
+    {.argument = "-u", .handler = handle_user},
+    {.argument = "-m", .handler = handle_mail}
 };
 
 int handle_user(int argc, char *arg[], server_config* config) {
@@ -39,6 +42,18 @@ int handle_user(int argc, char *arg[], server_config* config) {
     enqueue(config->users, user);
     return 1;
 }
+
+int handle_mail(int argc, char *arg[], server_config* config) {
+    if (argc == 0) {
+        log(FATAL, "No matching property for argument: %s\n", "-u");
+    }
+    size_t maildir_length = strlen(arg[0]);
+    config->maildir = malloc(maildir_length + 1);
+    strncpy(config->maildir, arg[0], maildir_length);
+    config->maildir[maildir_length] = '\0';
+    return 1;
+}
+
 
 server_config get_server_config(int argc, char *argv[]) {
     fprintf(stderr, "arguments: %d\n", argc);

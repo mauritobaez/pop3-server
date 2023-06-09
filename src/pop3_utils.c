@@ -245,12 +245,12 @@ command_t* handle_user_command(command_t* command_state, buffer_t buffer, pop3_c
                     client_state->username = user->username;
                     client_state->expected_password = user->password;
                     client_state->current_state = AUTH_POST_USER;
-                    answer = "+OK ahora pone la PASS :) \r\n";
+                    answer = "+OK ahora pone la PASS :)\n";
                     break;
                 }
             }
         }
-        answer = (client_state->current_state == AUTH_POST_USER)? answer : "-Err quien chota sos? >:( \r\n";
+        answer = (client_state->current_state == AUTH_POST_USER)? answer : "-Err quien chota sos? >:(\r\n";
     }
     return handle_simple_command(command_state, buffer, answer);
 }
@@ -261,27 +261,30 @@ command_t* handle_pass_command(command_t* command_state, buffer_t buffer, pop3_c
         char* password = command_state->args[0];
         if(password != NULL){
             if(strcmp(password,client_state->expected_password) == 0){
-                answer = "+OK Listo el pollo :) \r\n";
+                answer = "+OK Listo el pollo :)\r\n";
                 client_state->current_state = TRANSACTION;
                 //TODO: ACA hacer lo de LOCK para el usuario si no esta disponible pones -ERR unable to lock maildrop 
                 //Y cuanod se haga QUIT liberar el lock
-            }else{
+            } else {
                 client_state->username = NULL;
                 client_state->expected_password = NULL;
                 client_state->current_state = AUTH_PRE_USER;
             }
         }
     }
-    answer = (client_state->current_state == TRANSACTION)? answer:"-Err INCORRECTO >:(\r\n";    
+    answer = (client_state->current_state == TRANSACTION)? answer : "-Err INCORRECTO >:(\r\n";    
     return handle_simple_command(command_state, buffer, answer);
 }
 
-command_t* handle_greeting_command(command_t* command_state, buffer_t buffer, pop3_client* client_state) {
-    char answer[50];
-    if (command_state->answer == NULL) {
-        sprintf(answer, "%s %s\n", OK_MSG, GREETING_MSG);
+command_t* handle_quit_command(command_t* command_state, buffer_t buffer, pop3_client* client_state) {
+    if (client_state->current_state & AUTH_POST_USER || client_state->current_state & AUTH_PRE_USER) {
+        
     }
-    return handle_simple_command(command_state, buffer, answer);
+}
+
+
+command_t* handle_greeting_command(command_t* command_state, buffer_t buffer, pop3_client* client_state) {
+    return handle_simple_command(command_state, buffer, OK_MSG GREETING_MSG "\r\n");
 }
 
 command_t* handle_invalid_command(command_t* command_state, buffer_t buffer, pop3_client* client_state) {
@@ -311,4 +314,12 @@ void free_event (struct parser_event* event, bool free_arguments) {
     }
     free(event->args[0]);
     free(event);
+}
+
+void free_client(int index) {
+    parser_destroy(sockets[index].pop3_client_info->parser_state);
+    free(sockets[index].pop3_client_info->emails);
+    free(sockets[index].pop3_client_info->username);
+    free(sockets[index].pop3_client_info->expected_password);
+    free(sockets[index].pop3_client_info);
 }

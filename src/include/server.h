@@ -24,6 +24,7 @@ typedef struct server_config {
     size_t max_connections;
     size_t polling_timeout;
     queue_t users;
+    char *maildir;
 } server_config;
 
 typedef int(*handle_argument)(int argc, char *arg[], server_config* config);
