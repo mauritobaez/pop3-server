@@ -20,7 +20,7 @@ int setup_passive_socket(char *socket_num)
 {
     struct addrinfo addr_criteria;
     memset(&addr_criteria, 0, sizeof(addr_criteria));
-    addr_criteria.ai_family = AF_UNSPEC;
+    addr_criteria.ai_family = AF_INET6;
     addr_criteria.ai_flags = AI_PASSIVE;
     addr_criteria.ai_socktype = SOCK_STREAM;
     addr_criteria.ai_protocol = IPPROTO_TCP;

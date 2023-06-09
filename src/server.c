@@ -8,7 +8,7 @@
 -m <maildir>
 */
 
-#define TOTAL_ARGUMENTS 1
+#define TOTAL_ARGUMENTS 2
 
 int handle_user(int argc, char *arg[], server_config* config);
 int handle_mail(int argc, char *arg[], server_config* config);
