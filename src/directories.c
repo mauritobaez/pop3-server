@@ -25,15 +25,16 @@ typedef struct email_file_info {
 // receives: directory absolute path without '/' at the end and an int* 
 // -> 
 // returns: filename and size of files in said directory and the amount of emails
-email_file_info* get_file_info(const char* directory, size_t *email_count) {
+email_metadata_t* get_file_info(const char* directory, size_t *email_count) {
     printf("Directory: %s\n", directory);
     //Abro el directorio en cuestión
     DIR * dirp = opendir(directory); //debería quedar maildir/directory/ o con ./ al principio no me acuerdo
-    email_file_info * files = NULL;
+    email_metadata_t * files = NULL;
     log(INFO, "DIRP is NULL %d", dirp == NULL);
+    *email_count = 0;
     if(dirp != NULL) {
         size_t total_files = count_files_in_dir(dirp);
-        files = malloc(sizeof(email_file_info) * total_files);
+        files = malloc(sizeof(email_metadata_t) * total_files);
         int index = 0;
         struct dirent * curr; /*!= NULL*/
         struct stat sb;
@@ -51,6 +52,7 @@ email_file_info* get_file_info(const char* directory, size_t *email_count) {
                 if (S_ISREG(sb.st_mode)) {
                     files[index].octets = sb.st_size;
                     files[index].filename = malloc(strlen(curr->d_name) + 1);
+                    files[index].deleted = false;
                     strcpy(files[index].filename, curr->d_name);
                     index++;
                     *email_count += 1;

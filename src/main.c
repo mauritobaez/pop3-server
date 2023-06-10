@@ -87,7 +87,7 @@ int main(int argc, char *argv[])
             
             if (pfds[i].revents & POLLERR || pfds[i].revents & POLLNVAL)
             {
-                log(FATAL, "revents error %s\n", strerror(errno));
+                log(ERROR, "revents error %s\n", strerror(errno));
             }
             if (pfds[i].revents & POLLHUP)
             {

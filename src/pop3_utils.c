@@ -27,6 +27,7 @@ command_t* handle_pass_command(command_t* command_state, buffer_t buffer, pop3_c
 command_t* handle_invalid_command(command_t* command_state, buffer_t buffer, pop3_client* client_state);
 command_t* handle_greeting_command(command_t* command_state, buffer_t buffer, pop3_client* client_state);
 command_t* handle_quit_command(command_t* command_state, buffer_t buffer, pop3_client* client_state);
+command_t* handle_list_command(command_t* command_state, buffer_t buffer, pop3_client* client_state);
 
 void free_command (command_t* command);
 void free_event (struct parser_event* event, bool free_arguments);
@@ -40,7 +41,7 @@ command_info commands[COMMAND_COUNT] = {
     {.name = "PASS", .command_handler = (command_handler) & handle_pass_command,  .type = PASS,   .valid_states = AUTH_POST_USER},
     {.name = "QUIT", .command_handler = (command_handler) & handle_quit_command,  .type = QUIT,   .valid_states = AUTH_PRE_USER | AUTH_POST_USER | TRANSACTION},
     {.name = "STAT", .command_handler = (command_handler) & handle_noop,          .type = STAT,   .valid_states = TRANSACTION},
-    {.name = "LIST", .command_handler = (command_handler) & handle_noop,          .type = LIST,   .valid_states = TRANSACTION},
+    {.name = "LIST", .command_handler = (command_handler) & handle_list_command,  .type = LIST,   .valid_states = TRANSACTION},
     {.name = "RETR", .command_handler = (command_handler) & handle_noop,          .type = RETR,   .valid_states = TRANSACTION},
     {.name = "DELE", .command_handler = (command_handler) & handle_noop,          .type = DELE,   .valid_states = TRANSACTION},
     {.name = "RSET", .command_handler = (command_handler) & handle_noop,          .type = RSET,   .valid_states = TRANSACTION},
@@ -158,6 +159,10 @@ int handle_pop3_client(void *index, bool can_read, bool can_write) {
     return 0;
 
     close_client:
+        if (sockets[i].pop3_client_info->current_state & TRANSACTION) {
+            sockets[i].pop3_client_info->selected_user->locked = false;
+        }
+        // MANAGE STATE
         free_client(i);
         return -1;
 }
@@ -190,7 +195,7 @@ int accept_pop3_connection(void *index, bool can_read, bool can_write)
                 sockets[i].occupied = true;
                 sockets[i].handler = (int (*)(void *, bool, bool)) & handle_pop3_client;
                 sockets[i].try_read = true;
-                sockets[i].pop3_client_info = malloc(sizeof(pop3_client));
+                sockets[i].pop3_client_info = calloc(1, sizeof(pop3_client));
                 sockets[i].pop3_client_info->current_state = AUTH_PRE_USER;
                 sockets[i].pop3_client_info->parser_state = set_up_parser();
                 sockets[i].pop3_client_info->closing =false;
@@ -292,7 +297,7 @@ command_t* handle_pass_command(command_t* command_state, buffer_t buffer, pop3_c
 
                     char *user_maildir = join_path(global_config.maildir, client_state->selected_user->username);
                     client_state->emails = get_file_info(user_maildir, &(client_state->emails_count));
-                    log(INFO, "retrieved emails: %d\n", client_state->emails_count);
+                    log(INFO, "retrieved emails: %ld\n", client_state->emails_count);
                     free(user_maildir);
                 }else{
                     answer = "-Err el mail esta lockeado :( \r\n";
@@ -321,7 +326,57 @@ command_t* handle_quit_command(command_t* command_state, buffer_t buffer, pop3_c
     }
     return handle_simple_command(command_state,buffer,answer);
 }
+command_t* handle_list_command(command_t* command_state, buffer_t buffer, pop3_client* client_state){
+    if( command_state->args[0] != NULL){
+        int index = atoi(command_state->args[0]);
+        if(index <= 0){
+            return handle_simple_command(command_state,buffer,"-Err argumento invalido debe ser un numero entero mayor a uno\r\n");
+        }
+        email_metadata_t* email_data = get_email_at_index(client_state, index - 1);
+        if(email_data == NULL){
+            return handle_simple_command(command_state,buffer,"-Err no existe un mail en esa posicion \r\n");
+        }
+        char* listing_response = malloc(MAX_LISTING_SIZE * 2);
+        command_state->answer_alloc = true;
 
+        log(DEBUG, "index: %ld, octets: %ld\n\n", index, email_data->octets);
+        int bytes = snprintf(listing_response,MAX_LISTING_SIZE,"%s %d %ld octets \r\n",OK_MSG,index,email_data->octets);
+        if(bytes == MAX_LISTING_SIZE){
+            //No se si aca hacemos algo porq seguro salio cortado
+            return handle_simple_command(command_state,buffer,"-Err tamaño de email maximo excedido \r\n");
+        }
+        return handle_simple_command(command_state,buffer,listing_response);
+    } else {
+        size_t non_deleted_email_count = 0;
+        size_t total_octets = 0;
+        for (size_t i = 0; i < client_state->emails_count; i += 1) {
+            if (!client_state->emails[i].deleted) {
+                non_deleted_email_count += 1;
+                total_octets += client_state->emails[i].octets;
+            }            
+        }
+        int current_answer_index = 0;
+        int current_answer_size = sizeof(char *) * MAX_LISTING_SIZE * INITIAL_LISTING_COUNT;
+        command_state->answer_alloc = true;
+        char *listing_response = malloc(current_answer_size);
+        current_answer_index += snprintf(listing_response, MAX_LISTING_SIZE, "%s%ld messages (%ld octets)\r\n", OK_MSG, non_deleted_email_count, total_octets);
+        
+        size_t listing_index = 1;
+        for (size_t i = 0; i < client_state->emails_count; i += 1) {
+            if (!client_state->emails[i].deleted) {
+                current_answer_index += snprintf(listing_response + current_answer_index, MAX_LISTING_SIZE, "%ld %ld\r\n", listing_index, client_state->emails[i].octets);
+                listing_index += 1;
+                if ((current_answer_size - current_answer_index) < MAX_LISTING_SIZE) {
+                    current_answer_size *= 2;
+                    listing_response = realloc(listing_response, current_answer_size);
+                }
+            }
+        }
+        command_state->answer_alloc = true;
+        snprintf(listing_response + current_answer_index, MAX_LISTING_SIZE, "%s", SEPARATOR);
+        return handle_simple_command(command_state, buffer, listing_response);
+    }
+}
 
 command_t* handle_greeting_command(command_t* command_state, buffer_t buffer, pop3_client* client_state) {
     return handle_simple_command(command_state, buffer, OK_MSG GREETING_MSG "\r\n");
@@ -364,8 +419,26 @@ void free_client(int index){
     free_pop3_client(sockets[index].pop3_client_info);
 }
 
-void log_emails(email_file_info *emails, size_t c) {
+void log_emails(email_metadata_t *emails, size_t c) {
     for (size_t i = 0; i < c; i += 1) {
         log(INFO, "email %s octets: %lu\n", emails[i].filename, emails[i].octets);
     }
+}
+
+// indice empezando de 0
+email_metadata_t* get_email_at_index(pop3_client* state, size_t index) {
+    bool found = false;
+    size_t current_index = 0;
+    size_t i;
+    for (i = 0; i < state->emails_count && !found; i += 1) {
+        if (!state->emails[i].deleted) {
+            if (index == current_index) {
+                found = true;
+                break;
+            } else {
+                current_index += 1;
+            }
+        }
+    }
+    return (found) ? &(state->emails[i]) : NULL;
 }
