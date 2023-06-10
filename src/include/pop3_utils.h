@@ -10,7 +10,7 @@
 #define COMMAND_COUNT 10
 #define BUFFER_SIZE 1024
 #define OK_MSG "+OK "
-#define GREETING_MSG "POP3 preparado perra <pampero.itba.edu.ar>"
+#define GREETING_MSG "POP3 preparado <pampero.itba.edu.ar>"
 #define SEPARATOR "\r\n.\r\n"
 
 #define AUTH_PRE_USER 0x01
@@ -61,4 +61,5 @@ int handle_pop3_client(void *index, bool can_read, bool can_write);
 int accept_pop3_connection(void *index, bool can_read, bool can_write);
 void free_client(int index);
 
+void log_emails(email_file_info *emails, size_t c);
 #endif

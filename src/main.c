@@ -8,6 +8,7 @@
 #include "pop3_utils.h"
 #include "logger.h"
 #include "server.h"
+#include "directories.h"
 
 #define POP3_PORT "1110"
 
@@ -26,7 +27,6 @@ int main(int argc, char *argv[])
 {
     global_config = get_server_config(argc, argv);
     print_config(global_config);
-
     signal(SIGTERM, sigterm_handler);
     signal(SIGINT, sigterm_handler);
     sockets[0].fd = setup_passive_socket(POP3_PORT);

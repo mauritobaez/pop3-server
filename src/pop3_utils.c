@@ -6,6 +6,7 @@
 #include <errno.h>
 #include <string.h>
 
+#include "directories.h"
 #include "logger.h"
 #include "socket_utils.h"
 #include "queue.h"
@@ -14,7 +15,7 @@
 #include "server.h"
 
 
-#define log_error(error_level, error_message, return_value) do {\
+#define LOG_ERROR(error_level, error_message, return_value) do {\
     log((error_level), "%s - %s\n", (error_message), strerror(errno));\
     return (return_value);\
 } while (0)
@@ -28,6 +29,8 @@ command_t* handle_greeting_command(command_t* command_state, buffer_t buffer, po
 
 void free_command (command_t* command);
 void free_event (struct parser_event* event, bool free_arguments);
+
+server_config global_config;
 
 command_info commands[COMMAND_COUNT] = {
     {.name = "NOOP", .command_handler = (command_handler) & handle_noop,          .type = NOOP,   .valid_states = TRANSACTION},
@@ -49,12 +52,15 @@ int handle_pop3_client(void *index, bool can_read, bool can_write) {
     if(can_write) {
         size_t bytes_to_read = buffer_available_chars_count(socket->writing_buffer);
         char* message = malloc(bytes_to_read + 1);
-        if(message == NULL) log_error(ERROR, "Error writing to pop3 client", -1);
+        if(message == NULL) LOG_ERROR(ERROR, "Error writing to pop3 client", -1);
 
         size_t read_bytes = buffer_read(socket->writing_buffer, message, bytes_to_read); 
         ssize_t sent_bytes = send(socket->fd, message, read_bytes, 0);
         free(message);
-        if(sent_bytes < 0) log_error(ERROR, "Error writing to pop3 client", -1);
+        if(sent_bytes < 0) {
+            // todo clean client_state
+            return -1;
+        }
         
         buffer_advance_read(socket->writing_buffer, sent_bytes);
         
@@ -76,13 +82,13 @@ int handle_pop3_client(void *index, bool can_read, bool can_write) {
 
     if(can_read) {
         char* message = malloc(sizeof(char)* 512);
-        if(message == NULL) log_error(ERROR, "Error reading from pop3 client", -1);
+        if(message == NULL) LOG_ERROR(ERROR, "Error reading from pop3 client", -1);
         ssize_t received_bytes = recv(socket->fd, message, 512, 0);
         // Si recv devuelve 0 es porque se desconecto.
         if(received_bytes <= 0) {
             free(message);
             if(received_bytes < 0)
-                log_error(ERROR, "Error reading from pop3 client", -1);
+                LOG_ERROR(ERROR, "Error reading from pop3 client", -1);
             else {
                 log(INFO, "Socket %d - connection lost\n", i);
                 return -1;
@@ -162,7 +168,7 @@ int accept_pop3_connection(void *index, bool can_read, bool can_write)
 
         if (client_socket < 0)
         {
-            log_error(ERROR, "Error accepting pop3 connection", -1);
+            LOG_ERROR(ERROR, "Error accepting pop3 connection", -1);
         }
 
         for (int i = 0; i < MAX_SOCKETS; i += 1)
@@ -202,14 +208,14 @@ int accept_pop3_connection(void *index, bool can_read, bool can_write)
 
 command_t* handle_simple_command(command_t* command_state, buffer_t buffer, char* answer) {
     command_t* command = malloc(sizeof(command_t));
-    if(command == NULL) log_error(FATAL, "Error handling command", command);
+    if(command == NULL) LOG_ERROR(FATAL, "Error handling command", command);
     if(command_state->answer == NULL) {
         if(answer == NULL) {
             log(FATAL, "Unexpected error \n%s", "");
         }
         size_t length = strlen(answer);
         command->answer = malloc(length + 1);
-        if(command->answer == NULL) log_error(FATAL, "Error handling command", command);
+        if(command->answer == NULL) LOG_ERROR(FATAL, "Error handling command", command);
         strncpy(command->answer, answer, length + 1);
     } else {
         command->answer = command_state->answer;
@@ -255,6 +261,8 @@ command_t* handle_user_command(command_t* command_state, buffer_t buffer, pop3_c
     return handle_simple_command(command_state, buffer, answer);
 }
 
+
+
 command_t* handle_pass_command(command_t* command_state, buffer_t buffer, pop3_client* client_state) {
     char* answer = NULL;
     if(command_state->answer == NULL) {
@@ -265,6 +273,11 @@ command_t* handle_pass_command(command_t* command_state, buffer_t buffer, pop3_c
                 client_state->current_state = TRANSACTION;
                 //TODO: ACA hacer lo de LOCK para el usuario si no esta disponible pones -ERR unable to lock maildrop 
                 //Y cuanod se haga QUIT liberar el lock
+
+                char *user_maildir = join_path(global_config.maildir, client_state->username);
+                client_state->emails = get_file_info(user_maildir, &(client_state->emails_count));
+                log(LEVEL, "retrieved emails: %d\n", client_state->emails_count);
+                free(user_maildir);
             } else {
                 client_state->username = NULL;
                 client_state->expected_password = NULL;
@@ -322,4 +335,10 @@ void free_client(int index) {
     free(sockets[index].pop3_client_info->username);
     free(sockets[index].pop3_client_info->expected_password);
     free(sockets[index].pop3_client_info);
+}
+
+void log_emails(email_file_info *emails, size_t c) {
+    for (size_t i = 0; i < c; i += 1) {
+        log(INFO, "email %s octets: %lu\n", emails[i].filename, emails[i].octets);
+    }
 }

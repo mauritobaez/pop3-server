@@ -1,4 +1,6 @@
 #include <string.h>
+#include <unistd.h>
+#include <errno.h>
 
 #include "server.h"
 #include "logger.h"
@@ -8,6 +10,7 @@
 -m <maildir>
 */
 
+#define PATH_MAX 512
 #define TOTAL_ARGUMENTS 2
 
 int handle_user(int argc, char *arg[], server_config* config);
@@ -55,12 +58,22 @@ int handle_mail(int argc, char *arg[], server_config* config) {
 }
 
 
+server_config create_defaults(server_config config) {
+    if (config.maildir == NULL) {
+        config.maildir = malloc(sizeof(char) * PATH_MAX);
+        if (getcwd(config.maildir, PATH_MAX) == NULL) {
+            log(FATAL, "Error reading cwd: %s\n", strerror(errno));
+        }
+    }
+    return config;
+}
+
 server_config get_server_config(int argc, char *argv[]) {
-    fprintf(stderr, "arguments: %d\n", argc);
     server_config config = {
-        .max_connections = 10000,
-        .polling_timeout = 10000,
-        .users = create_queue()
+        .max_connections = 0,
+        .polling_timeout = 0,
+        .users = create_queue(),
+        .maildir = NULL,
     };
     // ignoro nombre de programa
     argv = argv + 1;
@@ -80,7 +93,7 @@ server_config get_server_config(int argc, char *argv[]) {
         argv += 1;
         argc -= 1;
     }
-    return config;
+    return create_defaults(config);
 }
 
 void print_config(server_config config) {
