@@ -7,6 +7,7 @@
 
 #include "parser.h"
 #include "logger.h"
+#include "command_parser.h"
 
 /* CDT del parser */
 struct parser
@@ -30,12 +31,10 @@ void parser_destroy(struct parser *p)
     if (p != NULL)
     {
         for(int i = 0; i < 3; i += 1) {
-
-            if(p->e1->args[i] != NULL){
-                free(p->e1->args[i]);
-            }
+            free(p->e1->args[i]);
         } 
         free(p->e1);
+        free_parser_def(p->def);
         free(p);
     }
 }

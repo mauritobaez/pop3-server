@@ -12,7 +12,6 @@
 
 #define POP3_PORT "1110"
 
-server_config global_config;
 
 static bool done = false;
 

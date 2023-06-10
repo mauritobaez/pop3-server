@@ -26,9 +26,11 @@ command_t* handle_user_command(command_t* command_state, buffer_t buffer, pop3_c
 command_t* handle_pass_command(command_t* command_state, buffer_t buffer, pop3_client* client_state);
 command_t* handle_invalid_command(command_t* command_state, buffer_t buffer, pop3_client* client_state);
 command_t* handle_greeting_command(command_t* command_state, buffer_t buffer, pop3_client* client_state);
+command_t* handle_quit_command(command_t* command_state, buffer_t buffer, pop3_client* client_state);
 
 void free_command (command_t* command);
 void free_event (struct parser_event* event, bool free_arguments);
+void free_pop3_client(pop3_client* client);
 
 server_config global_config;
 
@@ -36,7 +38,7 @@ command_info commands[COMMAND_COUNT] = {
     {.name = "NOOP", .command_handler = (command_handler) & handle_noop,          .type = NOOP,   .valid_states = TRANSACTION},
     {.name = "USER", .command_handler = (command_handler) & handle_user_command,  .type = USER,   .valid_states = AUTH_PRE_USER},
     {.name = "PASS", .command_handler = (command_handler) & handle_pass_command,  .type = PASS,   .valid_states = AUTH_POST_USER},
-    {.name = "QUIT", .command_handler = (command_handler) & handle_noop,          .type = QUIT,   .valid_states = AUTH_PRE_USER | AUTH_POST_USER | TRANSACTION},
+    {.name = "QUIT", .command_handler = (command_handler) & handle_quit_command,  .type = QUIT,   .valid_states = AUTH_PRE_USER | AUTH_POST_USER | TRANSACTION},
     {.name = "STAT", .command_handler = (command_handler) & handle_noop,          .type = STAT,   .valid_states = TRANSACTION},
     {.name = "LIST", .command_handler = (command_handler) & handle_noop,          .type = LIST,   .valid_states = TRANSACTION},
     {.name = "RETR", .command_handler = (command_handler) & handle_noop,          .type = RETR,   .valid_states = TRANSACTION},
@@ -58,8 +60,8 @@ int handle_pop3_client(void *index, bool can_read, bool can_write) {
         ssize_t sent_bytes = send(socket->fd, message, read_bytes, 0);
         free(message);
         if(sent_bytes < 0) {
-            // todo clean client_state
-            return -1;
+            log(INFO, "Socket %d - unknown error\n", i);
+            goto close_client;
         }
         
         buffer_advance_read(socket->writing_buffer, sent_bytes);
@@ -67,8 +69,11 @@ int handle_pop3_client(void *index, bool can_read, bool can_write) {
         //si ya vaciamos todo el buffer de salida, le decimos al selector que no nos despierte para escribir
         if(buffer_available_chars_count(socket->writing_buffer) == 0) {
             socket->try_write = false;
+            if(socket->pop3_client_info->closing){
+                log(INFO, "Socket %d - closing session\n", i);
+                goto close_client;
+            }
         }
-        
         //ahora que hicimos lugar en el buffer, intentamos resolver el comando que haya quedado pendiente
         if(socket->pop3_client_info->pending_command != NULL) {
             command_t* old_pending_command = socket->pop3_client_info->pending_command;
@@ -80,7 +85,7 @@ int handle_pop3_client(void *index, bool can_read, bool can_write) {
 
     struct parser* parser = socket->pop3_client_info->parser_state;
 
-    if(can_read) {
+    if(can_read && !socket->pop3_client_info->closing) {
         char* message = malloc(sizeof(char)* 512);
         if(message == NULL) LOG_ERROR(ERROR, "Error reading from pop3 client", -1);
         ssize_t received_bytes = recv(socket->fd, message, 512, 0);
@@ -91,9 +96,8 @@ int handle_pop3_client(void *index, bool can_read, bool can_write) {
                 LOG_ERROR(ERROR, "Error reading from pop3 client", -1);
             else {
                 log(INFO, "Socket %d - connection lost\n", i);
-                return -1;
+                goto close_client;
             }
-                
         }
         
         log(DEBUG,"Received %ld bytes from socket %d", received_bytes, socket->fd);
@@ -107,7 +111,7 @@ int handle_pop3_client(void *index, bool can_read, bool can_write) {
         free(message);
     }
 
-    if(socket->pop3_client_info->pending_command == NULL) {
+    if(socket->pop3_client_info->pending_command == NULL && !socket->pop3_client_info->closing) {
        struct parser_event* event = get_last_event(parser);
         if(event != NULL) {
             bool found_command = false;
@@ -122,6 +126,7 @@ int handle_pop3_client(void *index, bool can_read, bool can_write) {
                             .args[0] = event->args[1],
                             .args[1] = event->args[2],
                             .answer = NULL,
+                            .answer_alloc = false,
                             .index = 0
                             };
                     
@@ -140,6 +145,7 @@ int handle_pop3_client(void *index, bool can_read, bool can_write) {
                         .args[0] = NULL,
                         .args[1] = NULL,
                         .answer = NULL,
+                        .answer_alloc = false,
                         .index = 0
                         };
                 log(DEBUG, "Invalid command %s received\n", event->args[0]);
@@ -150,6 +156,10 @@ int handle_pop3_client(void *index, bool can_read, bool can_write) {
         }         
     }
     return 0;
+
+    close_client:
+        free_client(i);
+        return -1;
 }
 
 int accept_pop3_connection(void *index, bool can_read, bool can_write)
@@ -183,6 +193,8 @@ int accept_pop3_connection(void *index, bool can_read, bool can_write)
                 sockets[i].pop3_client_info = malloc(sizeof(pop3_client));
                 sockets[i].pop3_client_info->current_state = AUTH_PRE_USER;
                 sockets[i].pop3_client_info->parser_state = set_up_parser();
+                sockets[i].pop3_client_info->closing =false;
+                sockets[i].pop3_client_info->selected_user = NULL;
                 sockets[i].writing_buffer = buffer_init(BUFFER_SIZE);
                 current_socket_count += 1;
 
@@ -193,6 +205,7 @@ int accept_pop3_connection(void *index, bool can_read, bool can_write)
                     .args[0] = NULL,
                     .args[1] = NULL,
                     .answer = NULL,
+                    .answer_alloc = false,
                     .index = 0
                 };
 
@@ -215,10 +228,12 @@ command_t* handle_simple_command(command_t* command_state, buffer_t buffer, char
         }
         size_t length = strlen(answer);
         command->answer = malloc(length + 1);
+        command->answer_alloc = true;
         if(command->answer == NULL) LOG_ERROR(FATAL, "Error handling command", command);
         strncpy(command->answer, answer, length + 1);
     } else {
         command->answer = command_state->answer;
+        command->answer_alloc = command_state->answer_alloc;
     }
     command->command_handler = command_state->command_handler;
     command->type = command_state->type;
@@ -248,15 +263,14 @@ command_t* handle_user_command(command_t* command_state, buffer_t buffer, pop3_c
             while(iterator_has_next(list)){
                 user_t* user = iterator_next(list);
                 if(strcmp(user->username, username) == 0){
-                    client_state->username = user->username;
-                    client_state->expected_password = user->password;
+                    client_state->selected_user = user;
                     client_state->current_state = AUTH_POST_USER;
-                    answer = "+OK ahora pone la PASS :)\n";
+                    answer = "+OK ahora pone la PASS :)\r\n";
                     break;
                 }
             }
         }
-        answer = (client_state->current_state == AUTH_POST_USER)? answer : "-Err quien chota sos? >:(\r\n";
+        answer = (client_state->current_state == AUTH_POST_USER)? answer : "-Err quien sos? >:(\r\n";
     }
     return handle_simple_command(command_state, buffer, answer);
 }
@@ -268,31 +282,44 @@ command_t* handle_pass_command(command_t* command_state, buffer_t buffer, pop3_c
     if(command_state->answer == NULL) {
         char* password = command_state->args[0];
         if(password != NULL){
-            if(strcmp(password,client_state->expected_password) == 0){
-                answer = "+OK Listo el pollo :)\r\n";
-                client_state->current_state = TRANSACTION;
-                //TODO: ACA hacer lo de LOCK para el usuario si no esta disponible pones -ERR unable to lock maildrop 
-                //Y cuanod se haga QUIT liberar el lock
+            if(strcmp(password,client_state->selected_user->password) == 0){
+                if(!client_state->selected_user->locked){
+                    answer = "+OK Listo el pollo :)\r\n";
+                    client_state->current_state = TRANSACTION;
+                    client_state->selected_user->locked = true;
+                    //TODO: ACA hacer lo de LOCK para el usuario si no esta disponible pones -ERR unable to lock maildrop 
+                    //Y cuanod se haga QUIT liberar el lock
 
-                char *user_maildir = join_path(global_config.maildir, client_state->username);
-                client_state->emails = get_file_info(user_maildir, &(client_state->emails_count));
-                log(LEVEL, "retrieved emails: %d\n", client_state->emails_count);
-                free(user_maildir);
+                    char *user_maildir = join_path(global_config.maildir, client_state->selected_user->username);
+                    client_state->emails = get_file_info(user_maildir, &(client_state->emails_count));
+                    log(INFO, "retrieved emails: %d\n", client_state->emails_count);
+                    free(user_maildir);
+                }else{
+                    answer = "-Err el mail esta lockeado :( \r\n";
+                }
             } else {
-                client_state->username = NULL;
-                client_state->expected_password = NULL;
-                client_state->current_state = AUTH_PRE_USER;
+                answer = "-Err INCORRECTO >:( \r\n";
             }
         }
     }
-    answer = (client_state->current_state == TRANSACTION)? answer : "-Err INCORRECTO >:(\r\n";    
+    if(client_state->current_state != TRANSACTION){
+        client_state->selected_user = NULL;
+        client_state->current_state = AUTH_PRE_USER;
+    }  
     return handle_simple_command(command_state, buffer, answer);
 }
 
 command_t* handle_quit_command(command_t* command_state, buffer_t buffer, pop3_client* client_state) {
-    if (client_state->current_state & AUTH_POST_USER || client_state->current_state & AUTH_PRE_USER) {
-        
+    client_state->closing = true;
+    char* answer = "+OK closing \r\n";
+    if (client_state->current_state & TRANSACTION) {
+        client_state->selected_user->locked = false;
+        client_state->current_state = UPDATE;
+
+        //Aca va la logica de eliminar emails cuando se termina la sesion
+        answer = "+OK See you next time \r\n";
     }
+    return handle_simple_command(command_state,buffer,answer);
 }
 
 
@@ -309,32 +336,32 @@ command_t* handle_noop(command_t* command_state, buffer_t buffer, pop3_client* c
 }
 
 void free_command (command_t* command) {
-    if(command == NULL)
-        return;
-    if(command->args[0] != NULL)
-        free(command->args[0]);
-    if(command->args[1] != NULL)
-        free(command->args[1]);
+    if(command == NULL) return;
+    free(command->args[0]);
+    free(command->args[1]);
+    if(command->answer_alloc){
+        free(command->answer);
+    }
     free(command);
 }
 
 void free_event (struct parser_event* event, bool free_arguments) {
     if(free_arguments) {
-        if(event->args[1] != NULL)
-            free(event->args[1]);
-        if(event->args[2] != NULL)
-            free(event->args[2]);
+        free(event->args[1]);
+        free(event->args[2]);
     }
     free(event->args[0]);
     free(event);
 }
 
-void free_client(int index) {
-    parser_destroy(sockets[index].pop3_client_info->parser_state);
-    free(sockets[index].pop3_client_info->emails);
-    free(sockets[index].pop3_client_info->username);
-    free(sockets[index].pop3_client_info->expected_password);
-    free(sockets[index].pop3_client_info);
+void free_pop3_client(pop3_client* client) {
+    parser_destroy(client->parser_state);
+    free(client->emails);
+    free(client->pending_command);
+    free(client);
+}
+void free_client(int index){
+    free_pop3_client(sockets[index].pop3_client_info);
 }
 
 void log_emails(email_file_info *emails, size_t c) {

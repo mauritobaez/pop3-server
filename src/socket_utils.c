@@ -103,9 +103,7 @@ void free_client_socket(int socket) {
         if (sockets[i].fd == socket)
         {
             sockets[i].occupied = false;
-            if(sockets[i].pop3_client_info->pending_command != NULL) {
-                //TODO: free command
-            }
+            //El free de pop3client se hace en el quit
             if(sockets[i].writing_buffer != NULL)
                 buffer_free(sockets[i].writing_buffer);
             current_socket_count -= 1;

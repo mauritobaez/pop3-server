@@ -125,3 +125,12 @@ char* str_to_upper(char* str) {
 	return str;
 }
 
+void free_parser_def(struct parser_definition* par_def){
+    for (int i = 0; i < STATES_COUNT; i++)
+    {
+        free(par_def->states[i]);
+    }
+    free(par_def->states_n);
+    free(par_def->states);
+    free(par_def);
+}

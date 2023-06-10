@@ -5,6 +5,7 @@
 #include "queue.h"
 #include "buffer.h"
 #include "parser.h"
+#include "server.h"
 
 
 #define COMMAND_COUNT 10
@@ -28,6 +29,7 @@ struct command_t {
     //FILE* file;
     command_type_t type;
     char* answer;
+    bool answer_alloc;
     unsigned int index;
     char* args[2];
 };
@@ -49,10 +51,10 @@ typedef struct pop3_client {
     state_t current_state;
     command_t* pending_command;
     struct parser* parser_state;
-    char* username;
-    char* expected_password;
+    user_t* selected_user; // Ptero a struct user en la lista, no hacer free
     email_file_info* emails;
     size_t emails_count;
+    bool closing;
 } pop3_client;
 
 

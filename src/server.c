@@ -41,7 +41,7 @@ int handle_user(int argc, char *arg[], server_config* config) {
     }
     user->password = malloc(strlen(token) + 1);
     strcpy(user->password, token);
-    user->lock = 1;
+    user->locked = false;
     enqueue(config->users, user);
     return 1;
 }

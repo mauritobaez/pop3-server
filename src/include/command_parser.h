@@ -38,5 +38,7 @@ void finish(struct parser_event *ret, const uint8_t c);
 
 // auto descriptivo :D
 char* str_to_upper(char* str);
+//Liberar todos los mallocs de la definition
+void free_parser_def(struct parser_definition* par_def);
 
 #endif
