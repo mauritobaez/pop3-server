@@ -10,10 +10,8 @@
 
 #define COMMAND_COUNT 10
 #define BUFFER_SIZE 1024
-#define OK_MSG "+OK "
-#define ERR_MSG "-ERR "
-#define GREETING_MSG "POP3 preparado <pampero.itba.edu.ar>"
-#define SEPARATOR ".\r\n"
+#define MAX_LINE 512
+
 
 #define AUTH_PRE_USER 0x01
 #define AUTH_POST_USER 0x02
@@ -28,6 +26,13 @@ typedef enum {INVALID,NOOP,USER,PASS,QUIT,STAT,LIST,RETR,DELE,RSET,CAPA,GREETING
 typedef struct command_t command_t;
 typedef struct pop3_client pop3_client;
 typedef command_t* (*command_handler)(command_t *, buffer_t, pop3_client *);
+
+typedef struct retr_state_t {
+    int emailfd; // email file descriptor
+    int multiline_state; // buffer stuffing detector
+    bool finished_line; // finished writing 512 line
+} retr_state_t;
+
 struct command_t {
     command_t* (*command_handler)(command_t* command_state, buffer_t buffer, pop3_client* new_state);
     //FILE* file;
@@ -36,7 +41,7 @@ struct command_t {
     bool answer_alloc;
     unsigned int index;
     char* args[2];
-    int emailfd;
+    retr_state_t retr_state;
 };
 
 typedef struct command_info

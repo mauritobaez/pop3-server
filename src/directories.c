@@ -70,7 +70,9 @@ int open_email_file(pop3_client* client, char *filename) {
     char *mailbox = join_path(global_config.maildir, client->selected_user->username);
     char *mail_filename = join_path(mailbox, filename);
     free(mailbox);
-    return open(mailbox, O_RDONLY);
+    int fd = open(mail_filename, O_RDONLY);
+    free(mail_filename);
+    return fd;
 }
 
 size_t count_files_in_dir(DIR *dirp) {

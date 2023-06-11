@@ -5,6 +5,7 @@
 #include <sys/types.h>
 #include <errno.h>
 #include <string.h>
+#include <fcntl.h>
 
 #include "directories.h"
 #include "logger.h"
@@ -13,9 +14,9 @@
 #include "command_parser.h"
 #include "util.h"
 #include "server.h"
+#include "responses.h"
 
-
-#define LOG_ERROR(error_level, error_message, return_value) do {\
+#define LOG_AND_RETURN(error_level, error_message, return_value) do {\
     log((error_level), "%s - %s\n", (error_message), strerror(errno));\
     return (return_value);\
 } while (0)
@@ -43,7 +44,7 @@ command_info commands[COMMAND_COUNT] = {
     {.name = "QUIT", .command_handler = (command_handler) & handle_quit_command,  .type = QUIT,   .valid_states = AUTH_PRE_USER | AUTH_POST_USER | TRANSACTION},
     {.name = "STAT", .command_handler = (command_handler) & handle_noop,          .type = STAT,   .valid_states = TRANSACTION},
     {.name = "LIST", .command_handler = (command_handler) & handle_list_command,  .type = LIST,   .valid_states = TRANSACTION},
-    {.name = "RETR", .command_handler = (command_handler) & handle_noop,          .type = RETR,   .valid_states = TRANSACTION},
+    {.name = "RETR", .command_handler = (command_handler) & handle_retr_command,  .type = RETR,   .valid_states = TRANSACTION},
     {.name = "DELE", .command_handler = (command_handler) & handle_noop,          .type = DELE,   .valid_states = TRANSACTION},
     {.name = "RSET", .command_handler = (command_handler) & handle_noop,          .type = RSET,   .valid_states = TRANSACTION},
     {.name = "CAPA", .command_handler = (command_handler) & handle_noop,          .type = CAPA,   .valid_states = AUTH_PRE_USER | AUTH_POST_USER | TRANSACTION}
@@ -56,7 +57,7 @@ int handle_pop3_client(void *index, bool can_read, bool can_write) {
     if(can_write) {
         size_t bytes_to_read = buffer_available_chars_count(socket->writing_buffer);
         char* message = malloc(bytes_to_read + 1);
-        if(message == NULL) LOG_ERROR(ERROR, "Error writing to pop3 client", -1);
+        if(message == NULL) LOG_AND_RETURN(ERROR, "Error writing to pop3 client", -1);
 
         size_t read_bytes = buffer_read(socket->writing_buffer, message, bytes_to_read); 
         ssize_t sent_bytes = send(socket->fd, message, read_bytes, 0);
@@ -88,14 +89,15 @@ int handle_pop3_client(void *index, bool can_read, bool can_write) {
     struct parser* parser = socket->pop3_client_info->parser_state;
 
     if(can_read && !socket->pop3_client_info->closing) {
-        char* message = malloc(sizeof(char)* 512);
-        if(message == NULL) LOG_ERROR(ERROR, "Error reading from pop3 client", -1);
+        // todo: magic number
+        char* message = malloc(sizeof(char) * 512);
+        if(message == NULL) LOG_AND_RETURN(ERROR, "Error reading from pop3 client", -1);
         ssize_t received_bytes = recv(socket->fd, message, 512, 0);
         // Si recv devuelve 0 es porque se desconecto.
         if(received_bytes <= 0) {
             free(message);
             if(received_bytes < 0)
-                LOG_ERROR(ERROR, "Error reading from pop3 client", -1);
+                LOG_AND_RETURN(ERROR, "Error reading from pop3 client", -1);
             else {
                 log(INFO, "Socket %d - connection lost\n", i);
                 goto close_client;
@@ -129,7 +131,10 @@ int handle_pop3_client(void *index, bool can_read, bool can_write) {
                             .args[1] = event->args[2],
                             .answer = NULL,
                             .answer_alloc = false,
-                            .index = 0
+                            .index = 0,
+                            .retr_state.emailfd=0,
+                            .retr_state.finished_line=false,
+                            .retr_state.multiline_state = 0,
                             };
                     
                         log(DEBUG, "Command %s received with args %s and %s\n", event->args[0], event->args[1], event->args[2]);
@@ -148,7 +153,7 @@ int handle_pop3_client(void *index, bool can_read, bool can_write) {
                         .args[1] = NULL,
                         .answer = NULL,
                         .answer_alloc = false,
-                        .index = 0
+                        .index = 0,
                         };
                 log(DEBUG, "Invalid command %s received\n", event->args[0]);
                 socket->pop3_client_info->pending_command = command_state.command_handler(&command_state, socket->writing_buffer, socket->pop3_client_info);
@@ -184,7 +189,7 @@ int accept_pop3_connection(void *index, bool can_read, bool can_write)
 
         if (client_socket < 0)
         {
-            LOG_ERROR(ERROR, "Error accepting pop3 connection", -1);
+            LOG_AND_RETURN(ERROR, "Error accepting pop3 connection", -1);
         }
 
         for (int i = 0; i < MAX_SOCKETS; i += 1)
@@ -224,10 +229,17 @@ int accept_pop3_connection(void *index, bool can_read, bool can_write)
     }
     return -1;
 }
-
+/*  Simple command siempre es llamado por otro comando, por lo que tenes que tener en cuenta
+    el caso en que no termine de escribir y volver a llamar a simple command de forma correcta.
+    Adentro se hace un malloc, sirve para poder volver a llamar al comando que llamo a simple command
+    para que vuelva a intentar escribir, si se vuelve a llamar se encarga despues de liberar el viejo y
+    el nuevo malloc si se termina de escribir en esa llamda.
+    Si haces un malloc sobre el answer, pasarlo por state->answer y poner alloc_answer = true.
+    Si no usas simple command para escribir, debes hacer un malloc del command_state en c da llamada y liberarlo 
+    si terminas de escribir, sino deberias copiar al nuevo malloc lo necesario para seguir escribiendo en la siguiente llamada */
 command_t* handle_simple_command(command_t* command_state, buffer_t buffer, char* answer) {
     command_t* command = malloc(sizeof(command_t));
-    if(command == NULL) LOG_ERROR(FATAL, "Error handling command", command);
+    if(command == NULL) LOG_AND_RETURN(FATAL, "Error handling command", command);
     if(command_state->answer == NULL) {
         if(answer == NULL) {
             log(FATAL, "Unexpected error \n%s", "");
@@ -235,7 +247,7 @@ command_t* handle_simple_command(command_t* command_state, buffer_t buffer, char
         size_t length = strlen(answer);
         command->answer = malloc(length + 1);
         command->answer_alloc = true;
-        if(command->answer == NULL) LOG_ERROR(FATAL, "Error handling command", command);
+        if(command->answer == NULL) LOG_AND_RETURN(FATAL, "Error handling command", command);
         strncpy(command->answer, answer, length + 1);
     } else {
         command->answer = command_state->answer;
@@ -272,39 +284,112 @@ command_t* handle_user_command(command_t* command_state, buffer_t buffer, pop3_c
                 if(strcmp(user->username, username) == 0){
                     client_state->selected_user = user;
                     client_state->current_state = AUTH_POST_USER;
-                    answer = "+OK ahora pone la PASS :)\r\n";
+                    answer = USER_OK_MSG;
                     break;
                 }
             }
         }
-        answer = (client_state->current_state == AUTH_POST_USER)? answer : "-Err quien sos? >:(\r\n";
+        answer = (client_state->current_state == AUTH_POST_USER)? answer : USER_ERR_MSG;
     }
     return handle_simple_command(command_state, buffer, answer);
 }
 
-#define MAX_LINE 512
 
+// TODO: FIX MULTILINE AND BUFFER STUFFING
 command_t* handle_retr_write_command(command_t* command_state, buffer_t buffer, pop3_client* client_state) {
+    if (command_state->answer == NULL) { //STARTUP
+        command_state->answer = malloc(MAX_LINE + 1);
+        command_state->retr_state.multiline_state = 0;
+        strncpy(command_state->answer, RETR_OK_MSG, RETR_OK_MSG_LENGTH);
+        command_state->index = RETR_OK_MSG_LENGTH - 1;
+        command_state->answer[MAX_LINE] = '\0';
+        command_state->retr_state.finished_line = true;
+    }
+    // if emailfd == -1, it has finished reading
+    if (command_state->retr_state.emailfd != -1 && command_state->retr_state.finished_line) {
+        memset(command_state->answer + command_state->index, '\0', MAX_LINE - 2 - command_state->index);
+        ssize_t nbytes = read(command_state->retr_state.emailfd, command_state->answer + command_state->index, MAX_LINE - 2);
+        if (nbytes == 0 || nbytes < (MAX_LINE - 2)) {
+            close(command_state->retr_state.emailfd);
+            command_state->retr_state.emailfd = -1;
+            snprintf(command_state->answer + command_state->index + nbytes, 7, "%s.%s",CRLF,CRLF);
+        } else {
+            if (nbytes == (MAX_LINE - 2)) {
+                command_state->answer[MAX_LINE - 2] = '\r';
+                command_state->answer[MAX_LINE - 1] = '\n';
+            }
+            command_state->retr_state.finished_line = false;
+            command_state->index = 0;
+        }
+    } 
+    
+    size_t remaining_bytes_to_write = strlen(command_state->answer) - command_state->index;
+    size_t written_bytes = 0;
+    bool has_written = true;
 
+    // byte-stuffing \r\n.\r\n
+    for (size_t i = 0; i < remaining_bytes_to_write && has_written; i += 1) {
+        char written_character = *(command_state->answer + command_state->index + i);
+        if (written_character == '\r') {
+            command_state->retr_state.multiline_state = 1;
+        } else if (command_state->retr_state.multiline_state == 1 && written_character == '\n') {
+            command_state->retr_state.multiline_state = 2;
+        } else if (command_state->retr_state.multiline_state == 2 && written_character == '.' && command_state->retr_state.emailfd != -1) {
+            has_written = buffer_write_and_advance(buffer, ".", 1);
+            written_bytes += has_written;
+        } else {
+            command_state->retr_state.multiline_state = 0;
+        }
+        has_written =  buffer_write_and_advance(buffer, &written_character, 1);
+        written_bytes += has_written; 
+    }
+    if (written_bytes >= remaining_bytes_to_write) {
+        command_state->retr_state.finished_line = true;
+        command_state->index = 0;
+        if (command_state->retr_state.emailfd == -1) {
+           free_command(command_state);
+           return NULL;
+        }
+    }
+    command_state->index += written_bytes;
+    return command_state;
 }
 
 command_t* handle_retr_command(command_t* command_state, buffer_t buffer, pop3_client* client_state) {
     // blocking version
-    char *answer;
-    if (command_state->args[0] == NULL) {
-        return handle_simple_command(command_state, buffer, ERR_MSG " no such message");
-    } else {
-        int index = atoi(command_state->args[0]);
-        if(index <= 0){
-            return handle_simple_command(command_state,buffer, ERR_MSG " argumento invalido debe ser un numero entero mayor a uno\r\n");
+    command_t* command = malloc(sizeof(command_t));
+    if(command_state->retr_state.emailfd == 0){
+        if (command_state->args[0] == NULL) {
+            return handle_simple_command(command_state, buffer, RETR_ERR_MISS_MSG);
+        } else {
+            int index = atoi(command_state->args[0]);
+            if(index <= 0){
+                return handle_simple_command(command_state,buffer, INVALID_NUMBER_ARGUMENT);
+            }
+            email_metadata_t* email = get_email_at_index(client_state, index - 1);
+            if (email == NULL) {
+                return handle_simple_command(command_state, buffer, RETR_ERR_FOUND_MSG);
+            }
+            int emailfd = open_email_file(client_state, email->filename);
+            // todo: error opening file
+            int flags = fcntl(emailfd, F_GETFL, 0);
+            fcntl(emailfd, F_SETFL, flags | O_NONBLOCK);
+            command->answer = NULL;
+            command->retr_state.emailfd = emailfd;
+            command->index = 0;
+           
         }
-        email_metadata_t* email = get_email_at_index(client_state, index - 1);
-        if (email == NULL) {
-            return handle_simple_command(command_state, buffer, ERR_MSG " no such message");
-        }
-        command_state->emailfd = open_email_file(client_state, email->filename);
-        return handle_retr_write_command(command_state, buffer, client_state);
+    }else{
+        command->index = command_state->index;
+        command->answer = command_state->answer;
+        command->retr_state.emailfd = command_state->retr_state.emailfd;
     }
+    command->args[0] = command_state->args[0];
+    command->args[1] = command_state->args[1];
+    command->answer_alloc = true;
+    command->command_handler = command_state->command_handler;
+    command->type = RETR;
+    return handle_retr_write_command(command, buffer, client_state);
 }
 
 
@@ -316,7 +401,7 @@ command_t* handle_pass_command(command_t* command_state, buffer_t buffer, pop3_c
         if(password != NULL){
             if(strcmp(password,client_state->selected_user->password) == 0){
                 if(!client_state->selected_user->locked){
-                    answer = "+OK Listo el pollo :)\r\n";
+                    answer = PASS_OK_MSG;
                     client_state->current_state = TRANSACTION;
                     client_state->selected_user->locked = true;
                     //TODO: ACA hacer lo de LOCK para el usuario si no esta disponible pones -ERR unable to lock maildrop 
@@ -327,10 +412,10 @@ command_t* handle_pass_command(command_t* command_state, buffer_t buffer, pop3_c
                     log(INFO, "retrieved emails: %ld\n", client_state->emails_count);
                     free(user_maildir);
                 }else{
-                    answer = "-Err el mail esta lockeado :( \r\n";
+                    answer = PASS_ERR_LOCK_MSG;
                 }
             } else {
-                answer = "-Err INCORRECTO >:( \r\n";
+                answer = PASS_ERR_MSG;
             }
         }
     }
@@ -343,36 +428,39 @@ command_t* handle_pass_command(command_t* command_state, buffer_t buffer, pop3_c
 
 command_t* handle_quit_command(command_t* command_state, buffer_t buffer, pop3_client* client_state) {
     client_state->closing = true;
-    char* answer = "+OK closing \r\n";
+    char* answer = QUIT_MSG;
     if (client_state->current_state & TRANSACTION) {
         client_state->selected_user->locked = false;
         client_state->current_state = UPDATE;
 
         //Aca va la logica de eliminar emails cuando se termina la sesion
-        answer = "+OK See you next time \r\n";
+        answer = QUIT_AUTHENTICATED_MSG;
     }
     return handle_simple_command(command_state,buffer,answer);
 }
 command_t* handle_list_command(command_t* command_state, buffer_t buffer, pop3_client* client_state){
+    if(command_state->answer != NULL){
+        return handle_simple_command(command_state,buffer,NULL);
+    }
     if( command_state->args[0] != NULL){
         int index = atoi(command_state->args[0]);
         if(index <= 0){
-            return handle_simple_command(command_state,buffer,"-Err argumento invalido debe ser un numero entero mayor a uno\r\n");
+            return handle_simple_command(command_state,buffer, INVALID_NUMBER_ARGUMENT);
         }
         email_metadata_t* email_data = get_email_at_index(client_state, index - 1);
         if(email_data == NULL){
-            return handle_simple_command(command_state,buffer,"-Err no existe un mail en esa posicion \r\n");
+            return handle_simple_command(command_state,buffer, NON_EXISTANT_EMAIL_MSG);
         }
         char* listing_response = malloc(MAX_LISTING_SIZE * 2);
         command_state->answer_alloc = true;
-
-        log(DEBUG, "index: %ld, octets: %ld\n\n", index, email_data->octets);
-        int bytes = snprintf(listing_response,MAX_LISTING_SIZE,"%s %d %ld octets \r\n",OK_MSG,index,email_data->octets);
+        command_state->answer = listing_response;
+        log(DEBUG, "index: %d, octets: %ld\n\n", index, email_data->octets);
+        int bytes = snprintf(listing_response,MAX_LISTING_SIZE,OCTETS_FORMAT_MSG, index, email_data->octets);
         if(bytes == MAX_LISTING_SIZE){
             //No se si aca hacemos algo porq seguro salio cortado
-            return handle_simple_command(command_state,buffer,"-Err tamaño de email maximo excedido \r\n");
+            return handle_simple_command(command_state,buffer, LISTING_SIZE_ERR_MSG);
         }
-        return handle_simple_command(command_state,buffer,listing_response);
+        return handle_simple_command(command_state,buffer,NULL);
     } else {
         size_t non_deleted_email_count = 0;
         size_t total_octets = 0;
@@ -386,12 +474,12 @@ command_t* handle_list_command(command_t* command_state, buffer_t buffer, pop3_c
         int current_answer_size = sizeof(char *) * MAX_LISTING_SIZE * INITIAL_LISTING_COUNT;
         command_state->answer_alloc = true;
         char *listing_response = malloc(current_answer_size);
-        current_answer_index += snprintf(listing_response, MAX_LISTING_SIZE, "%s%ld messages (%ld octets)\r\n", OK_MSG, non_deleted_email_count, total_octets);
+        current_answer_index += snprintf(listing_response, MAX_LISTING_SIZE, OK_LIST_RESPONSE, non_deleted_email_count, total_octets);
         
         size_t listing_index = 1;
         for (size_t i = 0; i < client_state->emails_count; i += 1) {
             if (!client_state->emails[i].deleted) {
-                current_answer_index += snprintf(listing_response + current_answer_index, MAX_LISTING_SIZE, "%ld %ld\r\n", listing_index, client_state->emails[i].octets);
+                current_answer_index += snprintf(listing_response + current_answer_index, MAX_LISTING_SIZE, LISTING_RESPONSE_FORMAT, listing_index, client_state->emails[i].octets);
                 listing_index += 1;
                 if ((current_answer_size - current_answer_index) < MAX_LISTING_SIZE) {
                     current_answer_size *= 2;
@@ -400,21 +488,22 @@ command_t* handle_list_command(command_t* command_state, buffer_t buffer, pop3_c
             }
         }
         command_state->answer_alloc = true;
+        command_state->answer = listing_response;
         snprintf(listing_response + current_answer_index, MAX_LISTING_SIZE, "%s", SEPARATOR);
-        return handle_simple_command(command_state, buffer, listing_response);
+        return handle_simple_command(command_state, buffer,NULL);
     }
 }
 
 command_t* handle_greeting_command(command_t* command_state, buffer_t buffer, pop3_client* client_state) {
-    return handle_simple_command(command_state, buffer, OK_MSG GREETING_MSG "\r\n");
+    return handle_simple_command(command_state, buffer, GREETING_MSG);
 }
 
 command_t* handle_invalid_command(command_t* command_state, buffer_t buffer, pop3_client* client_state) {
-    return handle_simple_command(command_state, buffer, "-ERR invalid command\r\n");
+    return handle_simple_command(command_state, buffer, INVALID_MSG);
 }
 
 command_t* handle_noop(command_t* command_state, buffer_t buffer, pop3_client* client_state) {
-    return handle_simple_command(command_state, buffer, "+OK\r\n");
+    return handle_simple_command(command_state, buffer, NOOP_MSG);
 }
 
 void free_command (command_t* command) {

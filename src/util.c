@@ -78,34 +78,34 @@ printFlags(struct addrinfo *aip)
 	}
 }
 
-char *
-printAddressPort( const struct addrinfo *aip, char addr[]) 
-{
-	char abuf[INET6_ADDRSTRLEN];
-	const char *addrAux ;
-	if (aip->ai_family == AF_INET) {
-		struct sockaddr_in	*sinp;
-		sinp = (struct sockaddr_in *)aip->ai_addr;
-		addrAux = inet_ntop(AF_INET, &sinp->sin_addr, abuf, INET_ADDRSTRLEN);
-		if ( addrAux == NULL )
-			addrAux = "unknown";
-		strcpy(addr, addrAux);
-		if ( sinp->sin_port != 0) {
-			sprintf(addr + strlen(addr), ": %d", ntohs(sinp->sin_port));
-		}
-	} else if ( aip->ai_family ==AF_INET6) {
-		struct sockaddr_in6	*sinp;
-		sinp = (struct sockaddr_in6 *)aip->ai_addr;
-		addrAux = inet_ntop(AF_INET6, &sinp->sin6_addr, abuf, INET6_ADDRSTRLEN);
-		if ( addrAux == NULL )
-			addrAux = "unknown";
-		strcpy(addr, addrAux);			
-		if ( sinp->sin6_port != 0)
-			sprintf(addr + strlen(addr), ": %d", ntohs(sinp->sin6_port));
-	} else
-		strcpy(addr, "unknown");
-	return addr;
-}
+// char *
+// printAddressPort( const struct addrinfo *aip, char addr[]) 
+// {
+// 	char abuf[INET6_ADDRSTRLEN];
+// 	const char *addrAux ;
+// 	if (aip->ai_family == AF_INET) {
+// 		struct sockaddr_in	*sinp;
+// 		sinp = (struct sockaddr_in *)aip->ai_addr;
+// 		addrAux = inet_ntop(AF_INET, &sinp->sin_addr, abuf, INET_ADDRSTRLEN);
+// 		if ( addrAux == NULL )
+// 			addrAux = "unknown";
+// 		strcpy(addr, addrAux);
+// 		if ( sinp->sin_port != 0) {
+// 			sprintf(addr + strlen(addr), ": %d", ntohs(sinp->sin_port));
+// 		}
+// 	} else if ( aip->ai_family ==AF_INET6) {
+// 		struct sockaddr_in6	*sinp;
+// 		sinp = (struct sockaddr_in6 *)aip->ai_addr;
+// 		addrAux = inet_ntop(AF_INET6, &sinp->sin6_addr, abuf, INET6_ADDRSTRLEN);
+// 		if ( addrAux == NULL )
+// 			addrAux = "unknown";
+// 		strcpy(addr, addrAux);			
+// 		if ( sinp->sin6_port != 0)
+// 			sprintf(addr + strlen(addr), ": %d", ntohs(sinp->sin6_port));
+// 	} else
+// 		strcpy(addr, "unknown");
+// 	return addr;
+// }
 
 
 int 
