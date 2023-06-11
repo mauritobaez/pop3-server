@@ -28,6 +28,7 @@ command_t* handle_invalid_command(command_t* command_state, buffer_t buffer, pop
 command_t* handle_greeting_command(command_t* command_state, buffer_t buffer, pop3_client* client_state);
 command_t* handle_quit_command(command_t* command_state, buffer_t buffer, pop3_client* client_state);
 command_t* handle_list_command(command_t* command_state, buffer_t buffer, pop3_client* client_state);
+command_t* handle_retr_command(command_t* command_state, buffer_t buffer, pop3_client* client_state);
 
 void free_command (command_t* command);
 void free_event (struct parser_event* event, bool free_arguments);
@@ -257,6 +258,7 @@ command_t* handle_simple_command(command_t* command_state, buffer_t buffer, char
     return command;
 }
 
+
 command_t* handle_user_command(command_t* command_state, buffer_t buffer, pop3_client* client_state) {
     char* answer = NULL;
     if(command_state->answer == NULL) {
@@ -278,6 +280,31 @@ command_t* handle_user_command(command_t* command_state, buffer_t buffer, pop3_c
         answer = (client_state->current_state == AUTH_POST_USER)? answer : "-Err quien sos? >:(\r\n";
     }
     return handle_simple_command(command_state, buffer, answer);
+}
+
+#define MAX_LINE 512
+
+command_t* handle_retr_write_command(command_t* command_state, buffer_t buffer, pop3_client* client_state) {
+
+}
+
+command_t* handle_retr_command(command_t* command_state, buffer_t buffer, pop3_client* client_state) {
+    // blocking version
+    char *answer;
+    if (command_state->args[0] == NULL) {
+        return handle_simple_command(command_state, buffer, ERR_MSG " no such message");
+    } else {
+        int index = atoi(command_state->args[0]);
+        if(index <= 0){
+            return handle_simple_command(command_state,buffer, ERR_MSG " argumento invalido debe ser un numero entero mayor a uno\r\n");
+        }
+        email_metadata_t* email = get_email_at_index(client_state, index - 1);
+        if (email == NULL) {
+            return handle_simple_command(command_state, buffer, ERR_MSG " no such message");
+        }
+        command_state->emailfd = open_email_file(client_state, email->filename);
+        return handle_retr_write_command(command_state, buffer, client_state);
+    }
 }
 
 

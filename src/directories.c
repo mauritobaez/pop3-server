@@ -7,6 +7,7 @@
 #include <dirent.h>
 #include <string.h>
 #include <malloc.h>
+#include <fcntl.h>
 
 #include "logger.h"
 #include "./pop3_utils.h"
@@ -63,6 +64,13 @@ email_metadata_t* get_file_info(const char* directory, size_t *email_count) {
         closedir(dirp);
     }
     return files;
+}
+
+int open_email_file(pop3_client* client, char *filename) {
+    char *mailbox = join_path(global_config.maildir, client->selected_user->username);
+    char *mail_filename = join_path(mailbox, filename);
+    free(mailbox);
+    return open(mailbox, O_RDONLY);
 }
 
 size_t count_files_in_dir(DIR *dirp) {

@@ -11,6 +11,7 @@
 #define COMMAND_COUNT 10
 #define BUFFER_SIZE 1024
 #define OK_MSG "+OK "
+#define ERR_MSG "-ERR "
 #define GREETING_MSG "POP3 preparado <pampero.itba.edu.ar>"
 #define SEPARATOR ".\r\n"
 
@@ -35,6 +36,7 @@ struct command_t {
     bool answer_alloc;
     unsigned int index;
     char* args[2];
+    int emailfd;
 };
 
 typedef struct command_info
