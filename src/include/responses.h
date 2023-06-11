@@ -24,6 +24,8 @@
 #define LISTING_SIZE_ERR_MSG ERR_MSG"tamaño de email maximo excedido"CRLF
 #define OK_LIST_RESPONSE OK_MSG"%ld messages (%ld octets)"CRLF
 #define LISTING_RESPONSE_FORMAT "%ld %ld"CRLF
+#define STAT_OK_MSG OK_MSG "%ld %ld"CRLF
+#define STAT_OK_MSG_LENGTH 64
 #define QUIT_MSG OK_MSG"closing"CRLF
 #define QUIT_AUTHENTICATED_MSG OK_MSG "See you next time" CRLF
 

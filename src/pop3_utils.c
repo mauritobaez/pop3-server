@@ -28,6 +28,7 @@ command_t* handle_pass_command(command_t* command_state, buffer_t buffer, pop3_c
 command_t* handle_invalid_command(command_t* command_state, buffer_t buffer, pop3_client* client_state);
 command_t* handle_greeting_command(command_t* command_state, buffer_t buffer, pop3_client* client_state);
 command_t* handle_quit_command(command_t* command_state, buffer_t buffer, pop3_client* client_state);
+command_t* handle_stat_command(command_t* command_state, buffer_t buffer, pop3_client* client_state);
 command_t* handle_list_command(command_t* command_state, buffer_t buffer, pop3_client* client_state);
 command_t* handle_retr_command(command_t* command_state, buffer_t buffer, pop3_client* client_state);
 
@@ -42,7 +43,7 @@ command_info commands[COMMAND_COUNT] = {
     {.name = "USER", .command_handler = (command_handler) & handle_user_command,  .type = USER,   .valid_states = AUTH_PRE_USER},
     {.name = "PASS", .command_handler = (command_handler) & handle_pass_command,  .type = PASS,   .valid_states = AUTH_POST_USER},
     {.name = "QUIT", .command_handler = (command_handler) & handle_quit_command,  .type = QUIT,   .valid_states = AUTH_PRE_USER | AUTH_POST_USER | TRANSACTION},
-    {.name = "STAT", .command_handler = (command_handler) & handle_noop,          .type = STAT,   .valid_states = TRANSACTION},
+    {.name = "STAT", .command_handler = (command_handler) & handle_stat_command,  .type = STAT,   .valid_states = TRANSACTION},
     {.name = "LIST", .command_handler = (command_handler) & handle_list_command,  .type = LIST,   .valid_states = TRANSACTION},
     {.name = "RETR", .command_handler = (command_handler) & handle_retr_command,  .type = RETR,   .valid_states = TRANSACTION},
     {.name = "DELE", .command_handler = (command_handler) & handle_noop,          .type = DELE,   .valid_states = TRANSACTION},
@@ -417,6 +418,8 @@ command_t* handle_pass_command(command_t* command_state, buffer_t buffer, pop3_c
             } else {
                 answer = PASS_ERR_MSG;
             }
+        } else {
+            answer = PASS_ERR_MSG;
         }
     }
     if(client_state->current_state != TRANSACTION){
@@ -438,6 +441,27 @@ command_t* handle_quit_command(command_t* command_state, buffer_t buffer, pop3_c
     }
     return handle_simple_command(command_state,buffer,answer);
 }
+
+command_t* handle_stat_command(command_t* command_state, buffer_t buffer, pop3_client* client_state){
+    if(command_state->answer != NULL){
+        return handle_simple_command(command_state,buffer,NULL);
+    }
+    size_t non_deleted_email_count = 0;
+    size_t total_octets = 0;
+    for (size_t i = 0; i < client_state->emails_count; i += 1) {
+        if (!client_state->emails[i].deleted) {
+            non_deleted_email_count += 1;
+            total_octets += client_state->emails[i].octets;
+        }
+    }
+    char* answer = malloc(STAT_OK_MSG_LENGTH);
+    snprintf(answer, STAT_OK_MSG_LENGTH, STAT_OK_MSG, non_deleted_email_count, total_octets);
+    command_state->answer_alloc = true;
+    command_state->answer = answer;
+    return handle_simple_command(command_state, buffer,NULL);
+    
+}
+
 command_t* handle_list_command(command_t* command_state, buffer_t buffer, pop3_client* client_state){
     if(command_state->answer != NULL){
         return handle_simple_command(command_state,buffer,NULL);
