@@ -302,20 +302,27 @@ command_t* handle_retr_write_command(command_t* command_state, buffer_t buffer, 
         command_state->answer = malloc(MAX_LINE + 1);
         command_state->retr_state.multiline_state = 0;
         strncpy(command_state->answer, RETR_OK_MSG, RETR_OK_MSG_LENGTH);
-        command_state->index = RETR_OK_MSG_LENGTH - 1;
-        command_state->answer[MAX_LINE] = '\0';
-        command_state->retr_state.finished_line = true;
     }
-    // if emailfd == -1, it has finished reading
+    if(!command_state->retr_state.greeting_done){
+        command_state->index += buffer_write_and_advance(buffer, command_state->answer, RETR_OK_MSG_LENGTH-1);
+        if(command_state->index >= RETR_OK_MSG_LENGTH-1){
+            command_state->retr_state.greeting_done = true;
+            command_state->retr_state.finished_line = true;
+            command_state->index = 0;
+        }
+        return command_state;
+    }
+    // if emailfd == -1, it has finished reading]
     if (command_state->retr_state.emailfd != -1 && command_state->retr_state.finished_line) {
-        memset(command_state->answer + command_state->index, '\0', MAX_LINE - 2 - command_state->index);
-        ssize_t nbytes = read(command_state->retr_state.emailfd, command_state->answer + command_state->index, MAX_LINE - 2);
+        memset(command_state->answer, 0, MAX_LINE + 1);
+        ssize_t nbytes = read(command_state->retr_state.emailfd, command_state->answer, MAX_LINE - 2);
+        log(DEBUG, "Read %d bytes from emailfd", nbytes);
         if (nbytes == 0 || nbytes < (MAX_LINE - 2)) {
             close(command_state->retr_state.emailfd);
             command_state->retr_state.emailfd = -1;
-            snprintf(command_state->answer + command_state->index + nbytes, 7, "%s.%s",CRLF,CRLF);
+            snprintf(command_state->answer + nbytes, 7, "%s.%s",CRLF,CRLF);
         } else {
-            if (nbytes == (MAX_LINE - 2)) {
+            if (nbytes == (MAX_LINE - 2)) {//TODO: Revisar porque te cuenta solo la cant de bytes puede haber un \r\n en el medio y aun asi poner \r\n otra vez
                 command_state->answer[MAX_LINE - 2] = '\r';
                 command_state->answer[MAX_LINE - 1] = '\n';
             }
@@ -323,11 +330,9 @@ command_t* handle_retr_write_command(command_t* command_state, buffer_t buffer, 
             command_state->index = 0;
         }
     } 
-    
     size_t remaining_bytes_to_write = strlen(command_state->answer) - command_state->index;
     size_t written_bytes = 0;
     bool has_written = true;
-
     // byte-stuffing \r\n.\r\n
     for (size_t i = 0; i < remaining_bytes_to_write && has_written; i += 1) {
         char written_character = *(command_state->answer + command_state->index + i);
@@ -344,6 +349,7 @@ command_t* handle_retr_write_command(command_t* command_state, buffer_t buffer, 
         has_written =  buffer_write_and_advance(buffer, &written_character, 1);
         written_bytes += has_written; 
     }
+
     if (written_bytes >= remaining_bytes_to_write) {
         command_state->retr_state.finished_line = true;
         command_state->index = 0;
@@ -351,8 +357,9 @@ command_t* handle_retr_write_command(command_t* command_state, buffer_t buffer, 
            free_command(command_state);
            return NULL;
         }
+    }else{
+        command_state->index += written_bytes;
     }
-    command_state->index += written_bytes;
     return command_state;
 }
 
@@ -378,18 +385,22 @@ command_t* handle_retr_command(command_t* command_state, buffer_t buffer, pop3_c
             command->answer = NULL;
             command->retr_state.emailfd = emailfd;
             command->index = 0;
-           
+            command->retr_state.finished_line = false;
+            command->retr_state.greeting_done = false;
         }
     }else{
         command->index = command_state->index;
         command->answer = command_state->answer;
         command->retr_state.emailfd = command_state->retr_state.emailfd;
+        command->retr_state.finished_line = command_state->retr_state.finished_line;
+        command->retr_state.greeting_done = command_state->retr_state.greeting_done;
     }
     command->args[0] = command_state->args[0];
     command->args[1] = command_state->args[1];
     command->answer_alloc = true;
     command->command_handler = command_state->command_handler;
     command->type = RETR;
+    
     return handle_retr_write_command(command, buffer, client_state);
 }
 
