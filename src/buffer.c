@@ -25,6 +25,10 @@ buffer_t buffer_init(const size_t size) {
     return buffer;
 }
 
+//   r
+// 0 1 2
+//     w
+
 size_t buffer_write_and_advance(buffer_t buffer, char* string, size_t nbytes) {
     size_t available_size = buffer_available_space(buffer); 
 
@@ -45,8 +49,8 @@ size_t buffer_write_and_advance(buffer_t buffer, char* string, size_t nbytes) {
     }
 
     buffer->write_ptr += nbytes;
-    if (buffer->write_ptr >= buffer->memstart + buffer->max_size) {
-        buffer->write_ptr -= buffer->max_size;
+    if (buffer->write_ptr > buffer->memstart + buffer->max_size) {
+        buffer->write_ptr -= (buffer->max_size + 1);
     }
     return nbytes;
 }
@@ -75,8 +79,8 @@ size_t buffer_read(buffer_t buffer, char* string, size_t nbytes) {
 
 void buffer_advance_read(buffer_t buffer, size_t nbytes) {
     buffer->read_ptr += nbytes;
-    if (buffer->read_ptr >= buffer->memstart + buffer->max_size) {
-        buffer->read_ptr -= buffer->max_size;
+    if (buffer->read_ptr > buffer->memstart + buffer->max_size) {
+        buffer->read_ptr -= (buffer->max_size + 1);
     }
 }
 
@@ -84,14 +88,16 @@ void buffer_clean(buffer_t buffer) {
     buffer->read_ptr = buffer->write_ptr = buffer->memstart;
 }
 
+// r = 2
+// w = 0
 size_t buffer_available_space(buffer_t buffer) {
     ssize_t ptr_diff = buffer->write_ptr - buffer->read_ptr;
-    return (ptr_diff >= 0) ? buffer->max_size - (size_t) ptr_diff : (size_t) ptr_diff - 1;
+    return (ptr_diff >= 0) ? buffer->max_size - (size_t) ptr_diff : -ptr_diff - 1;
 }
 
 size_t buffer_available_chars_count(buffer_t buffer) {
     ssize_t ptr_diff = buffer->write_ptr - buffer->read_ptr;
-    return (ptr_diff >= 0) ? (size_t) ptr_diff : buffer->max_size - (size_t) ptr_diff + 1;
+    return (ptr_diff >= 0) ? (size_t) ptr_diff : buffer->max_size + ptr_diff + 1;
 }
 
 void buffer_free(buffer_t buffer) {

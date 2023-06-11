@@ -59,7 +59,8 @@ int handle_pop3_client(void *index, bool can_read, bool can_write) {
         size_t bytes_to_read = buffer_available_chars_count(socket->writing_buffer);
         char* message = malloc(bytes_to_read + 1);
         if(message == NULL) LOG_AND_RETURN(ERROR, "Error writing to pop3 client", -1);
-
+        message[bytes_to_read] = '\0';
+        
         size_t read_bytes = buffer_read(socket->writing_buffer, message, bytes_to_read); 
         ssize_t sent_bytes = send(socket->fd, message, read_bytes, 0);
         free(message);
