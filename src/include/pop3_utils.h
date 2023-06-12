@@ -32,6 +32,7 @@ typedef struct retr_state_t {
     int multiline_state; // buffer stuffing detector
     bool finished_line; // finished writing 512 line
     bool greeting_done; // greeting done
+    bool final_dot;
 } retr_state_t;
 
 struct command_t {

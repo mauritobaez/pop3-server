@@ -64,7 +64,7 @@ int handle_pop3_client(void *index, bool can_read, bool can_write)
             LOG_AND_RETURN(ERROR, "Error writing to pop3 client", -1);
         message[bytes_to_read] = '\0';
 
-        size_t read_bytes = buffer_read(socket->writing_buffer, message, bytes_to_read);
+        size_t read_bytes = buffer_read(socket->writing_buffer, message, bytes_to_read);//TODO:Ver phantom bytes
         ssize_t sent_bytes = send(socket->fd, message, read_bytes, 0);
         free(message);
         if (sent_bytes < 0)
@@ -336,16 +336,27 @@ command_t *handle_retr_write_command(command_t *command_state, buffer_t buffer, 
         command_state->retr_state.multiline_state = 0;
         strncpy(command_state->answer, RETR_OK_MSG, RETR_OK_MSG_LENGTH);
     }
-    if (!command_state->retr_state.greeting_done)
+    if (!command_state->retr_state.greeting_done) //Poner el mensaje inicial
     {
-        command_state->index += buffer_write_and_advance(buffer, command_state->answer, RETR_OK_MSG_LENGTH - 1);
-        if (command_state->index >= RETR_OK_MSG_LENGTH - 1)
+        command_state->index += buffer_write_and_advance(buffer, command_state->answer + command_state->index, RETR_OK_MSG_LENGTH - command_state->index - 1);
+        if (command_state->index >= RETR_OK_MSG_LENGTH-1)
         {
             command_state->retr_state.greeting_done = true;
             command_state->retr_state.finished_line = true;
             command_state->index = 0;
         }
         return command_state;
+    }
+    if(command_state->retr_state.emailfd == -1 && !command_state->retr_state.final_dot && command_state->index == 0){ //Termino de escribir entonces copio el ultimo \r\n . \r\n
+        strncpy(command_state->answer, FINAL_MESSAGE_RETR, FINAL_MESSAGE_RETR_LENGTH);
+        command_state->retr_state.final_dot = true;
+    }
+    if(command_state->retr_state.emailfd == -1 && command_state->retr_state.final_dot){ // Me aseguro que se escriba lo ultimo
+        command_state->index += buffer_write_and_advance(buffer, command_state->answer + command_state->index, FINAL_MESSAGE_RETR_LENGTH - command_state->index - 1);
+        if(command_state->index >= FINAL_MESSAGE_RETR_LENGTH-1){
+            free_command(command_state);
+            return NULL;
+        }
     }
     // if emailfd == -1, it has finished reading]
     if (command_state->retr_state.emailfd != -1 && command_state->retr_state.finished_line)
@@ -357,7 +368,6 @@ command_t *handle_retr_write_command(command_t *command_state, buffer_t buffer, 
         {
             close(command_state->retr_state.emailfd);
             command_state->retr_state.emailfd = -1;
-            snprintf(command_state->answer + nbytes, 7, "%s.%s", CRLF, CRLF);
         }
         else
         {
@@ -385,7 +395,7 @@ command_t *handle_retr_write_command(command_t *command_state, buffer_t buffer, 
         {
             command_state->retr_state.multiline_state = 2;
         }
-        else if (command_state->retr_state.multiline_state == 2 && written_character == '.' && command_state->retr_state.emailfd != -1)
+        else if (command_state->retr_state.multiline_state == 2 && written_character == '.')
         {
             has_written = buffer_write_and_advance(buffer, ".", 1);
             written_bytes += has_written;
@@ -402,11 +412,6 @@ command_t *handle_retr_write_command(command_t *command_state, buffer_t buffer, 
     {
         command_state->retr_state.finished_line = true;
         command_state->index = 0;
-        if (command_state->retr_state.emailfd == -1)
-        {
-            free_command(command_state);
-            return NULL;
-        }
     }
     else
     {
@@ -449,6 +454,8 @@ command_t *handle_retr_command(command_t *command_state, buffer_t buffer, pop3_c
             command->index = 0;
             command->retr_state.finished_line = false;
             command->retr_state.greeting_done = false;
+            command->retr_state.multiline_state = 0;
+            command->retr_state.final_dot = false;
         }
     }
     else
@@ -458,6 +465,8 @@ command_t *handle_retr_command(command_t *command_state, buffer_t buffer, pop3_c
         command->retr_state.emailfd = command_state->retr_state.emailfd;
         command->retr_state.finished_line = command_state->retr_state.finished_line;
         command->retr_state.greeting_done = command_state->retr_state.greeting_done;
+        command->retr_state.multiline_state = command_state->retr_state.multiline_state;
+        command->retr_state.final_dot = command_state->retr_state.final_dot;
     }
     command->args[0] = command_state->args[0];
     command->args[1] = command_state->args[1];

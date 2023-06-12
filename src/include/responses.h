@@ -10,7 +10,7 @@
 #define USER_OK_MSG OK_MSG "ahora pone la PASS :)"CRLF
 #define USER_ERR_MSG ERR_MSG "quien sos? >:("CRLF
 #define RETR_OK_MSG OK_MSG "message follows"CRLF
-#define RETR_OK_MSG_LENGTH (strlen(RETR_OK_MSG) + 1)
+#define RETR_OK_MSG_LENGTH (strlen(RETR_OK_MSG)+1)
 #define RETR_ERR_MISS_MSG ERR_MSG "missing message argument"CRLF
 #define RETR_ERR_FOUND_MSG ERR_MSG "no such message was found"CRLF
 #define PASS_OK_MSG OK_MSG "listo el pollo :)" CRLF
@@ -28,5 +28,7 @@
 #define STAT_OK_MSG_LENGTH 64
 #define QUIT_MSG OK_MSG"closing"CRLF
 #define QUIT_AUTHENTICATED_MSG OK_MSG "See you next time" CRLF
+#define FINAL_MESSAGE_RETR CRLF"."CRLF
+#define FINAL_MESSAGE_RETR_LENGTH 6
 
 #endif
