@@ -32,6 +32,8 @@ command_t *handle_quit_command(command_t *command_state, buffer_t buffer, pop3_c
 command_t *handle_stat_command(command_t *command_state, buffer_t buffer, pop3_client *client_state);
 command_t *handle_list_command(command_t *command_state, buffer_t buffer, pop3_client *client_state);
 command_t *handle_retr_command(command_t *command_state, buffer_t buffer, pop3_client *client_state);
+command_t *handle_rset_command(command_t *command_state, buffer_t buffer, pop3_client *client_state);
+command_t *handle_dele_command(command_t *command_state, buffer_t buffer, pop3_client *client_state);
 
 void free_command(command_t *command);
 void free_event(struct parser_event *event, bool free_arguments);
@@ -48,7 +50,7 @@ command_info commands[COMMAND_COUNT] = {
     {.name = "LIST", .command_handler = (command_handler)&handle_list_command, .type = LIST, .valid_states = TRANSACTION},
     {.name = "RETR", .command_handler = (command_handler)&handle_retr_command, .type = RETR, .valid_states = TRANSACTION},
     {.name = "DELE", .command_handler = (command_handler)&handle_noop, .type = DELE, .valid_states = TRANSACTION},
-    {.name = "RSET", .command_handler = (command_handler)&handle_noop, .type = RSET, .valid_states = TRANSACTION},
+    {.name = "RSET", .command_handler = (command_handler)&handle_rset_command, .type = RSET, .valid_states = TRANSACTION},
     {.name = "CAPA", .command_handler = (command_handler)&handle_noop, .type = CAPA, .valid_states = AUTH_PRE_USER | AUTH_POST_USER | TRANSACTION}};
 
 int handle_pop3_client(void *index, bool can_read, bool can_write)
@@ -600,13 +602,11 @@ command_t *handle_list_command(command_t *command_state, buffer_t buffer, pop3_c
         char *listing_response = malloc(current_answer_size);
         current_answer_index += snprintf(listing_response, MAX_LISTING_SIZE, OK_LIST_RESPONSE, non_deleted_email_count, total_octets);
 
-        size_t listing_index = 1;
         for (size_t i = 0; i < client_state->emails_count; i += 1)
         {
             if (!client_state->emails[i].deleted)
             {
-                current_answer_index += snprintf(listing_response + current_answer_index, MAX_LISTING_SIZE, LISTING_RESPONSE_FORMAT, listing_index, client_state->emails[i].octets);
-                listing_index += 1;
+                current_answer_index += snprintf(listing_response + current_answer_index, MAX_LISTING_SIZE, LISTING_RESPONSE_FORMAT, i, client_state->emails[i].octets);
                 if ((current_answer_size - current_answer_index) < MAX_LISTING_SIZE)
                 {
                     current_answer_size *= 2;
@@ -635,6 +635,34 @@ command_t *handle_noop(command_t *command_state, buffer_t buffer, pop3_client *c
 {
     return handle_simple_command(command_state, buffer, NOOP_MSG);
 }
+
+command_t *handle_rset_command(command_t *command_state, buffer_t buffer, pop3_client *client_state)
+{
+    for (size_t i = 0; i < client_state->emails_count; i += 1)
+    {
+        client_state->emails[i].deleted = false;
+    }
+    return handle_simple_command(command_state, buffer, RSET_MSG);
+}
+
+// command_t *handle_dele_command(command_t *command_state, buffer_t buffer, pop3_client *client_state)
+// {
+//     if (command_state->args[0] == NULL)
+//     {
+//         return handle_simple_command(command_state, buffer, NON_EXISTANT_EMAIL_MSG);
+//     }
+//     int index = atoi(command_state->args[0]);
+//     if (index <= 0)
+//     {
+//         return handle_simple_command(command_state, buffer, INVALID_NUMBER_ARGUMENT);
+//     }
+//     email_metadata_t *email = get_email_at_index(client_state, index - 1);
+//     if (email == NULL)
+//     {
+//         return handle_simple_command(command_state, buffer, RETR_ERR_FOUND_MSG);
+//     }
+//     email->deleted = true;
+// }
 
 void free_command(command_t *command)
 {
@@ -688,20 +716,14 @@ void log_emails(email_metadata_t *emails, size_t c)
 email_metadata_t *get_email_at_index(pop3_client *state, size_t index)
 {
     bool found = false;
-    size_t current_index = 0;
     size_t i;
     for (i = 0; i < state->emails_count && !found; i += 1)
     {
         if (!state->emails[i].deleted)
         {
-            if (index == current_index)
+            if (index == i)
             {
                 found = true;
-                break;
-            }
-            else
-            {
-                current_index += 1;
             }
         }
     }
