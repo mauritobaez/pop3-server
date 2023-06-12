@@ -42,7 +42,7 @@ size_t buffer_write_and_advance(buffer_t buffer, char *string, size_t nbytes)
     if (available_size == 0 || nbytes == 0)
         return 0;
 
-    size_t space_to_end = buffer->memstart + buffer->max_size - buffer->write_ptr;
+    size_t space_to_end = buffer->memstart + buffer->max_size - buffer->write_ptr + 1 ;
 
     if (nbytes > available_size)
     {
@@ -78,7 +78,7 @@ size_t buffer_read(buffer_t buffer, char *string, size_t nbytes)
         nbytes = available_chars;
     }
 
-    size_t space_to_end = buffer->memstart + buffer->max_size - buffer->read_ptr;
+    size_t space_to_end = buffer->memstart + buffer->max_size - buffer->read_ptr + 1 ;
     if (nbytes > space_to_end)
     {
         memcpy(string, buffer->read_ptr, space_to_end);

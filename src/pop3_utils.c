@@ -49,7 +49,7 @@ command_info commands[COMMAND_COUNT] = {
     {.name = "STAT", .command_handler = (command_handler)&handle_stat_command, .type = STAT, .valid_states = TRANSACTION},
     {.name = "LIST", .command_handler = (command_handler)&handle_list_command, .type = LIST, .valid_states = TRANSACTION},
     {.name = "RETR", .command_handler = (command_handler)&handle_retr_command, .type = RETR, .valid_states = TRANSACTION},
-    {.name = "DELE", .command_handler = (command_handler)&handle_noop, .type = DELE, .valid_states = TRANSACTION},
+    {.name = "DELE", .command_handler = (command_handler)&handle_dele_command, .type = DELE, .valid_states = TRANSACTION},
     {.name = "RSET", .command_handler = (command_handler)&handle_rset_command, .type = RSET, .valid_states = TRANSACTION},
     {.name = "CAPA", .command_handler = (command_handler)&handle_noop, .type = CAPA, .valid_states = AUTH_PRE_USER | AUTH_POST_USER | TRANSACTION}};
 
@@ -66,7 +66,7 @@ int handle_pop3_client(void *index, bool can_read, bool can_write)
             LOG_AND_RETURN(ERROR, "Error writing to pop3 client", -1);
         message[bytes_to_read] = '\0';
 
-        size_t read_bytes = buffer_read(socket->writing_buffer, message, bytes_to_read);
+        size_t read_bytes = buffer_read(socket->writing_buffer, message, bytes_to_read);//TODO:Ver phantom bytes
         ssize_t sent_bytes = send(socket->fd, message, read_bytes, 0);
         free(message);
         if (sent_bytes < 0)
@@ -338,16 +338,27 @@ command_t *handle_retr_write_command(command_t *command_state, buffer_t buffer, 
         command_state->retr_state.multiline_state = 0;
         strncpy(command_state->answer, RETR_OK_MSG, RETR_OK_MSG_LENGTH);
     }
-    if (!command_state->retr_state.greeting_done)
+    if (!command_state->retr_state.greeting_done) //Poner el mensaje inicial
     {
-        command_state->index += buffer_write_and_advance(buffer, command_state->answer, RETR_OK_MSG_LENGTH - 1);
-        if (command_state->index >= RETR_OK_MSG_LENGTH - 1)
+        command_state->index += buffer_write_and_advance(buffer, command_state->answer + command_state->index, RETR_OK_MSG_LENGTH - command_state->index - 1);
+        if (command_state->index >= RETR_OK_MSG_LENGTH-1)
         {
             command_state->retr_state.greeting_done = true;
             command_state->retr_state.finished_line = true;
             command_state->index = 0;
         }
         return command_state;
+    }
+    if(command_state->retr_state.emailfd == -1 && !command_state->retr_state.final_dot && command_state->index == 0){ //Termino de escribir entonces copio el ultimo \r\n . \r\n
+        strncpy(command_state->answer, FINAL_MESSAGE_RETR, FINAL_MESSAGE_RETR_LENGTH);
+        command_state->retr_state.final_dot = true;
+    }
+    if(command_state->retr_state.emailfd == -1 && command_state->retr_state.final_dot){ // Me aseguro que se escriba lo ultimo
+        command_state->index += buffer_write_and_advance(buffer, command_state->answer + command_state->index, FINAL_MESSAGE_RETR_LENGTH - command_state->index - 1);
+        if(command_state->index >= FINAL_MESSAGE_RETR_LENGTH-1){
+            free_command(command_state);
+            return NULL;
+        }
     }
     // if emailfd == -1, it has finished reading]
     if (command_state->retr_state.emailfd != -1 && command_state->retr_state.finished_line)
@@ -359,7 +370,6 @@ command_t *handle_retr_write_command(command_t *command_state, buffer_t buffer, 
         {
             close(command_state->retr_state.emailfd);
             command_state->retr_state.emailfd = -1;
-            snprintf(command_state->answer + nbytes, 7, "%s.%s", CRLF, CRLF);
         }
         else
         {
@@ -387,10 +397,14 @@ command_t *handle_retr_write_command(command_t *command_state, buffer_t buffer, 
         {
             command_state->retr_state.multiline_state = 2;
         }
-        else if (command_state->retr_state.multiline_state == 2 && written_character == '.' && command_state->retr_state.emailfd != -1)
-        {
+        else if (command_state->retr_state.multiline_state == 2 && written_character == '.')
+        {   
+    
             has_written = buffer_write_and_advance(buffer, ".", 1);
             written_bytes += has_written;
+            if(has_written){
+                command_state->retr_state.multiline_state = 0;
+            }
         }
         else
         {
@@ -404,11 +418,6 @@ command_t *handle_retr_write_command(command_t *command_state, buffer_t buffer, 
     {
         command_state->retr_state.finished_line = true;
         command_state->index = 0;
-        if (command_state->retr_state.emailfd == -1)
-        {
-            free_command(command_state);
-            return NULL;
-        }
     }
     else
     {
@@ -451,6 +460,8 @@ command_t *handle_retr_command(command_t *command_state, buffer_t buffer, pop3_c
             command->index = 0;
             command->retr_state.finished_line = false;
             command->retr_state.greeting_done = false;
+            command->retr_state.multiline_state = 0;
+            command->retr_state.final_dot = false;
         }
     }
     else
@@ -460,6 +471,8 @@ command_t *handle_retr_command(command_t *command_state, buffer_t buffer, pop3_c
         command->retr_state.emailfd = command_state->retr_state.emailfd;
         command->retr_state.finished_line = command_state->retr_state.finished_line;
         command->retr_state.greeting_done = command_state->retr_state.greeting_done;
+        command->retr_state.multiline_state = command_state->retr_state.multiline_state;
+        command->retr_state.final_dot = command_state->retr_state.final_dot;
     }
     command->args[0] = command_state->args[0];
     command->args[1] = command_state->args[1];
@@ -606,7 +619,7 @@ command_t *handle_list_command(command_t *command_state, buffer_t buffer, pop3_c
         {
             if (!client_state->emails[i].deleted)
             {
-                current_answer_index += snprintf(listing_response + current_answer_index, MAX_LISTING_SIZE, LISTING_RESPONSE_FORMAT, i, client_state->emails[i].octets);
+                current_answer_index += snprintf(listing_response + current_answer_index, MAX_LISTING_SIZE, LISTING_RESPONSE_FORMAT, i + 1, client_state->emails[i].octets);
                 if ((current_answer_size - current_answer_index) < MAX_LISTING_SIZE)
                 {
                     current_answer_size *= 2;
@@ -645,24 +658,31 @@ command_t *handle_rset_command(command_t *command_state, buffer_t buffer, pop3_c
     return handle_simple_command(command_state, buffer, RSET_MSG);
 }
 
-// command_t *handle_dele_command(command_t *command_state, buffer_t buffer, pop3_client *client_state)
-// {
-//     if (command_state->args[0] == NULL)
-//     {
-//         return handle_simple_command(command_state, buffer, NON_EXISTANT_EMAIL_MSG);
-//     }
-//     int index = atoi(command_state->args[0]);
-//     if (index <= 0)
-//     {
-//         return handle_simple_command(command_state, buffer, INVALID_NUMBER_ARGUMENT);
-//     }
-//     email_metadata_t *email = get_email_at_index(client_state, index - 1);
-//     if (email == NULL)
-//     {
-//         return handle_simple_command(command_state, buffer, RETR_ERR_FOUND_MSG);
-//     }
-//     email->deleted = true;
-// }
+command_t *handle_dele_command(command_t *command_state, buffer_t buffer, pop3_client *client_state)
+{
+    if (command_state->args[0] == NULL)
+    {
+        return handle_simple_command(command_state, buffer, INVALID_NUMBER_ARGUMENT);
+    }
+    int message_index = atoi(command_state->args[0]);
+    if (message_index <= 0)
+    {
+        return handle_simple_command(command_state, buffer, INVALID_NUMBER_ARGUMENT);
+    }
+    bool found = 0;
+    if (message_index > client_state->emails_count) {
+        return handle_simple_command(command_state, buffer, NON_EXISTANT_EMAIL_MSG);
+    }
+    email_metadata_t* email = &(client_state->emails[message_index - 1]);
+    char response[MAX_LINE];
+    if (email->deleted) {
+        snprintf(response, MAX_LINE, DELETED_ALREADY_MSG, message_index);
+    } else {
+        email->deleted = true;
+        snprintf(response, MAX_LINE, DELETED_MSG, message_index);
+    }
+    return handle_simple_command(command_state, buffer, response);
+}
 
 void free_command(command_t *command)
 {
