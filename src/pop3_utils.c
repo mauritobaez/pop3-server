@@ -34,6 +34,7 @@ command_t *handle_list_command(command_t *command_state, buffer_t buffer, pop3_c
 command_t *handle_retr_command(command_t *command_state, buffer_t buffer, pop3_client *client_state);
 command_t *handle_rset_command(command_t *command_state, buffer_t buffer, pop3_client *client_state);
 command_t *handle_dele_command(command_t *command_state, buffer_t buffer, pop3_client *client_state);
+command_t *handle_capa(command_t *command_state, buffer_t buffer, pop3_client *client_state);
 
 void free_command(command_t *command);
 void free_event(struct parser_event *event, bool free_arguments);
@@ -51,7 +52,7 @@ command_info commands[COMMAND_COUNT] = {
     {.name = "RETR", .command_handler = (command_handler)&handle_retr_command, .type = RETR, .valid_states = TRANSACTION},
     {.name = "DELE", .command_handler = (command_handler)&handle_dele_command, .type = DELE, .valid_states = TRANSACTION},
     {.name = "RSET", .command_handler = (command_handler)&handle_rset_command, .type = RSET, .valid_states = TRANSACTION},
-    {.name = "CAPA", .command_handler = (command_handler)&handle_noop, .type = CAPA, .valid_states = AUTH_PRE_USER | AUTH_POST_USER | TRANSACTION}};
+    {.name = "CAPA", .command_handler = (command_handler)&handle_capa, .type = CAPA, .valid_states = AUTH_PRE_USER | AUTH_POST_USER | TRANSACTION}};
 
 int handle_pop3_client(void *index, bool can_read, bool can_write)
 {
@@ -360,7 +361,7 @@ command_t *handle_retr_write_command(command_t *command_state, buffer_t buffer, 
             return NULL;
         }
     }
-    // if emailfd == -1, it has finished reading]
+    // if emailfd == -1, it has finished reading
     if (command_state->retr_state.emailfd != -1 && command_state->retr_state.finished_line)
     {
         memset(command_state->answer, 0, MAX_LINE + 1);
@@ -537,9 +538,33 @@ command_t *handle_quit_command(command_t *command_state, buffer_t buffer, pop3_c
     {
         client_state->selected_user->locked = false;
         client_state->current_state = UPDATE;
+        bool error=false;
 
+        int new_emails_count = client_state->emails_count;
+        for(int i = 0; i < client_state->emails_count && !error; i++){
+            if(client_state->emails[i].deleted){
+                char *user_maildir = join_path(global_config.maildir, client_state->selected_user->username);
+                char *email_path = join_path(user_maildir, client_state->emails[i].filename);
+                if( remove(email_path) == -1){
+                    log(ERROR, "Error deleting email %s\n", email_path);
+                    error=true;
+                }else{
+                    log(INFO, "Deleted email %s\n", email_path);
+                    new_emails_count--;
+                }
+                free(email_path);
+                free(user_maildir);
+            }
+        }
         // Aca va la logica de eliminar emails cuando se termina la sesion
-        answer = QUIT_AUTHENTICATED_MSG;
+        int answer_length = QUIT_AUTHENTICATED_MSG_LENGTH + MAX_DIGITS_INT + (error)? QUIT_UNAUTHENTICATED_MSG_ERROR_LENGTH:0;
+        command_state->answer = malloc(answer_length * sizeof(char));
+        command_state->answer_alloc = true;
+        int written_chars = snprintf(command_state->answer,answer_length, QUIT_AUTHENTICATED_MSG ,new_emails_count);
+        if(error){
+            snprintf(command_state->answer + written_chars,QUIT_UNAUTHENTICATED_MSG_ERROR_LENGTH, QUIT_UNAUTHENTICATED_MSG_ERROR);
+        }
+        return handle_simple_command(command_state, buffer, NULL);
     }
     return handle_simple_command(command_state, buffer, answer);
 }
@@ -647,6 +672,11 @@ command_t *handle_invalid_command(command_t *command_state, buffer_t buffer, pop
 command_t *handle_noop(command_t *command_state, buffer_t buffer, pop3_client *client_state)
 {
     return handle_simple_command(command_state, buffer, NOOP_MSG);
+}
+
+command_t *handle_capa(command_t *command_state, buffer_t buffer, pop3_client *client_state)
+{
+    return handle_simple_command(command_state, buffer, CAPA_MSG);
 }
 
 command_t *handle_rset_command(command_t *command_state, buffer_t buffer, pop3_client *client_state)
