@@ -435,7 +435,7 @@ command_t *handle_retr_command(command_t *command_state, buffer_t buffer, pop3_c
     {
         if (command_state->args[0] == NULL)
         {
-            free_command(command);
+            free(command);
             return handle_simple_command(command_state, buffer, RETR_ERR_MISS_MSG);
         }
         else
@@ -443,13 +443,13 @@ command_t *handle_retr_command(command_t *command_state, buffer_t buffer, pop3_c
             int index = atoi(command_state->args[0]);
             if (index <= 0)
             {
-                free_command(command);
+                free(command);
                 return handle_simple_command(command_state, buffer, INVALID_NUMBER_ARGUMENT);
             }
             email_metadata_t *email = get_email_at_index(client_state, index - 1);
             if (email == NULL)
             {
-                free_command(command);
+                free(command);
                 return handle_simple_command(command_state, buffer, RETR_ERR_FOUND_MSG);
             }
             int emailfd = open_email_file(client_state, email->filename);
