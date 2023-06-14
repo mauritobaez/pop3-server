@@ -767,13 +767,14 @@ email_metadata_t *get_email_at_index(pop3_client *state, size_t index)
 {
     bool found = false;
     size_t i;
-    for (i = 0; i < state->emails_count && !found; i += 1)
+    for (i = 0; i < state->emails_count; i += 1)
     {
         if (!state->emails[i].deleted)
         {
             if (index == i)
             {
                 found = true;
+                break;
             }
         }
     }
