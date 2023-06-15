@@ -37,7 +37,7 @@
 #define RSET_MSG OK_MSG "maildrop has been resetted" CRLF
 #define DELETED_ALREADY_MSG ERR_MSG "message %d ya fue borrado" CRLF
 #define DELETED_MSG OK_MSG "message %d borrado" CRLF
-#define FINAL_MESSAGE_RETR CRLF"."CRLF
-#define FINAL_MESSAGE_RETR_LENGTH 6
+#define FINAL_MESSAGE_RETR "."CRLF
+#define FINAL_MESSAGE_RETR_LENGTH 4
 
 #endif

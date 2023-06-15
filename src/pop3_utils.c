@@ -316,20 +316,15 @@ command_t *handle_retr_write_command(command_t *command_state, buffer_t buffer, 
     if (RETR_STATE(command_state)->emailfd != -1 && RETR_STATE(command_state)->finished_line)
     {
         memset(command_state->answer, 0, MAX_LINE + 1);
-        ssize_t nbytes = read(RETR_STATE(command_state)->emailfd, command_state->answer, MAX_LINE - 2);
+        ssize_t nbytes = read(RETR_STATE(command_state)->emailfd, command_state->answer, MAX_LINE);
         log(DEBUG, "Read %ld bytes from emailfd", nbytes);
-        if (nbytes == 0 || nbytes < (MAX_LINE - 2))
+        if (nbytes == 0 || nbytes < MAX_LINE)
         {
             close(RETR_STATE(command_state)->emailfd);
             RETR_STATE(command_state)->emailfd = -1;
         }
         else
         {
-            if (nbytes == (MAX_LINE - 2))
-            { // TODO: Revisar porque te cuenta solo la cant de bytes puede haber un \r\n en el medio y aun asi poner \r\n otra vez
-                command_state->answer[MAX_LINE - 2] = '\r';
-                command_state->answer[MAX_LINE - 1] = '\n';
-            }
             RETR_STATE(command_state)->finished_line = false;
             command_state->index = 0;
         }
