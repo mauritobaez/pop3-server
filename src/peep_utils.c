@@ -4,13 +4,21 @@
 #include "socket_utils.h"
 #include "command_parser.h"
 #include "server.h"
+#include "peep_responses.h"
 
+#define RETURN_NEGATIVE_RESPONSE(command_state, buffer, error_code) \
+    do {\
+    char neg_resp[SHORT_RESP_LENGTH] = {0};\
+    snprintf(neg_resp, SHORT_RESP_LENGTH, NEG_RESP, (error_code));\
+    return handle_simple_command((command_state), (buffer), neg_resp);\
+    } while(0)
 
-command_t *example(command_t *command_state, buffer_t buffer, client_info_t *client_state);
+#define RETURN_POSITIVE_RESPONSE(command_state, buffer) return handle_simple_command((command_state), (buffer), OK)
+
 command_t *handle_unknown_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
 command_t *handle_authenticate_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
-command_t *handle_quit_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
-command_t *handle_show_max_connections_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
+command_t *handle_qquit_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
+command_t *handle_set_max_connections_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
 command_t *handle_add_user_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
 command_t *handle_delete_user_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
 command_t *handle_show_users_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
@@ -30,26 +38,32 @@ command_t *handle_help_command(command_t *command_state, buffer_t buffer, client
 
 
 command_info peep_commands[PEEP_COMMAND_COUNT] = {
-    {.name = "a",   .command_handler = (command_handler)&handle_a_command, .type = C_AUTHENTICATE, .valid_states = AUTHENTICATION},
-    {.name = "q",   .command_handler = (command_handler)&example, .type = C_QUIT, .valid_states = AUTHENTICATION | AUTHENTICATED},
-    {.name = "u+",  .command_handler = (command_handler)&example, .type = C_ADD_USER, .valid_states = AUTHENTICATED},
-    {.name = "u-",  .command_handler = (command_handler)&example, .type = C_DELETE_USER, .valid_states = AUTHENTICATED},
-    {.name = "u?",  .command_handler = (command_handler)&example, .type = C_SHOW_USERS, .valid_states = AUTHENTICATED},
-    {.name = "c=",  .command_handler = (command_handler)&example, .type = C_SET_MAX_CONNECTIONS, .valid_states = AUTHENTICATED},
-    {.name = "c?",  .command_handler = (command_handler)&example, .type = C_SHOW_MAX_CONNECTIONS, .valid_states = AUTHENTICATED},
-    {.name = "m=",  .command_handler = (command_handler)&example, .type = C_SET_MAILDIR, .valid_states = AUTHENTICATED},
-    {.name = "m?",  .command_handler = (command_handler)&example, .type = C_SHOW_MAILDIR, .valid_states = AUTHENTICATED},
-    {.name = "t=",  .command_handler = (command_handler)&example, .type = C_SET_TIMEOUT, .valid_states = AUTHENTICATED},
-    {.name = "t?",  .command_handler = (command_handler)&example, .type = C_SHOW_TIMEOUT, .valid_states = AUTHENTICATION},
-    {.name = "rb?", .command_handler = (command_handler)&example, .type = C_SHOW_RETRIEVED_BYTES, .valid_states = AUTHENTICATION | AUTHENTICATED},
-    {.name = "re?", .command_handler = (command_handler)&example, .type = C_SHOW_RETRIEVED_EMAILS_COUNT, .valid_states = AUTHENTICATED},
-    {.name = "xe?", .command_handler = (command_handler)&example, .type = C_SHOW_REMOVED_EMAILS_COUNT, .valid_states = AUTHENTICATED},
-    {.name = "cc?", .command_handler = (command_handler)&example, .type = C_SHOW_CURR_CONNECTION_COUNT, .valid_states = AUTHENTICATED},
-    {.name = "cu?", .command_handler = (command_handler)&example, .type = C_SHOW_CURR_LOGGED_IN, .valid_states = AUTHENTICATED},
-    {.name = "hc?", .command_handler = (command_handler)&example, .type = C_SHOW_HIST_CONNECTION_COUNT, .valid_states = AUTHENTICATED},
-    {.name = "hu?", .command_handler = (command_handler)&example, .type = C_SHOW_HIST_LOGGED_IN_COUNT, .valid_states = AUTHENTICATED},
-    {.name = "h?",  .command_handler = (command_handler)&example, .type = C_HELP, .valid_states = AUTHENTICATED | AUTHENTICATED}
+    {.name = "a",   .command_handler = (command_handler)&handle_authenticate_command, .type = C_AUTHENTICATE, .valid_states = AUTHENTICATION},
+    {.name = "q",   .command_handler = (command_handler)&handle_qquit_command, .type = C_QUIT, .valid_states = AUTHENTICATION | AUTHENTICATED},
+    {.name = "u+",  .command_handler = (command_handler)&handle_add_user_command, .type = C_ADD_USER, .valid_states = AUTHENTICATED},
+    {.name = "u-",  .command_handler = (command_handler)&handle_delete_user_command, .type = C_DELETE_USER, .valid_states = AUTHENTICATED},
+    {.name = "u?",  .command_handler = (command_handler)&handle_show_users_command, .type = C_SHOW_USERS, .valid_states = AUTHENTICATED},
+    {.name = "c=",  .command_handler = (command_handler)&handle_set_max_connections_command, .type = C_SET_MAX_CONNECTIONS, .valid_states = AUTHENTICATED},
+    {.name = "c?",  .command_handler = (command_handler)&handle_show_max_connections_command, .type = C_SHOW_MAX_CONNECTIONS, .valid_states = AUTHENTICATED},
+    {.name = "m=",  .command_handler = (command_handler)&handle_set_maildir_command, .type = C_SET_MAILDIR, .valid_states = AUTHENTICATED},
+    {.name = "m?",  .command_handler = (command_handler)&handle_show_maildir_command, .type = C_SHOW_MAILDIR, .valid_states = AUTHENTICATED},
+    {.name = "t=",  .command_handler = (command_handler)&handle_set_timeout_command, .type = C_SET_TIMEOUT, .valid_states = AUTHENTICATED},
+    {.name = "t?",  .command_handler = (command_handler)&handle_show_timeout_command, .type = C_SHOW_TIMEOUT, .valid_states = AUTHENTICATED},
+    {.name = "rb?", .command_handler = (command_handler)&handle_show_retrieved_bytes_command, .type = C_SHOW_RETRIEVED_BYTES, .valid_states = AUTHENTICATED},
+    {.name = "re?", .command_handler = (command_handler)&handle_show_retrieved_emails_count_command, .type = C_SHOW_RETRIEVED_EMAILS_COUNT, .valid_states = AUTHENTICATED},
+    {.name = "xe?", .command_handler = (command_handler)&handle_show_removed_emails_count_command, .type = C_SHOW_REMOVED_EMAILS_COUNT, .valid_states = AUTHENTICATED},
+    {.name = "cc?", .command_handler = (command_handler)&handle_show_curr_connection_count_command, .type = C_SHOW_CURR_CONNECTION_COUNT, .valid_states = AUTHENTICATED},
+    {.name = "cu?", .command_handler = (command_handler)&handle_show_curr_logged_in_command, .type = C_SHOW_CURR_LOGGED_IN, .valid_states = AUTHENTICATED},
+    {.name = "hc?", .command_handler = (command_handler)&handle_show_hist_connection_count_command, .type = C_SHOW_HIST_CONNECTION_COUNT, .valid_states = AUTHENTICATED},
+    {.name = "hu?", .command_handler = (command_handler)&handle_show_hist_logged_in_count_command, .type = C_SHOW_HIST_LOGGED_IN_COUNT, .valid_states = AUTHENTICATED},
+    {.name = "h?",  .command_handler = (command_handler)&handle_help_command, .type = C_HELP, .valid_states = AUTHENTICATION | AUTHENTICATED}
 };
+
+uint8_t get_arg_count(command_t* command_state) {
+    if(command_state->args[0] == NULL)  return 0;
+    if(command_state->args[1] == NULL)  return 1;
+    else  return 2;
+} 
 
 
 int handle_peep_client(void *index, bool can_read, bool can_write) {
@@ -90,7 +104,6 @@ int handle_peep_client(void *index, bool can_read, bool can_write) {
             bool found_command = false;
             if (event->args[0] != NULL)
             {
-                str_to_upper(event->args[0]);
                 for (int i = 0; i < PEEP_COMMAND_COUNT && !found_command; i++)
                 {
                     if (((peep_commands[i].valid_states & peep_client_info->state) > 0) && strcmp(event->args[0], peep_commands[i].name) == 0)
@@ -192,106 +205,114 @@ void free_peep_client(int index)
     free(client);
 }
 
-command_t *example(command_t *command_state, buffer_t buffer, client_info_t *client_state)
-{
-    return handle_simple_command(command_state, buffer, "+");
-}
-
 command_t *handle_unknown_command(command_t *command_state, buffer_t buffer, client_info_t *client_state)
 {
-    return handle_simple_command(command_state, buffer, "+");
+    RETURN_NEGATIVE_RESPONSE(command_state, buffer, 0);
 }
-
 
 command_t *handle_authenticate_command(command_t *command_state, buffer_t buffer, client_info_t *client_state) 
 {
-
+    if(get_arg_count(command_state) < 2) {
+        RETURN_NEGATIVE_RESPONSE(command_state, buffer, 1);
+    }
+    if(strcmp(command_state->args[0], global_config.peep_admin.username) == 0 && strcmp(command_state->args[1], global_config.peep_admin.password) == 0) {
+        client_state->peep_client_info->state = AUTHENTICATED;
+        RETURN_POSITIVE_RESPONSE(command_state, buffer);
+    }
+    else {
+        RETURN_NEGATIVE_RESPONSE(command_state, buffer, 2);
+    }
 }
 
 
-command_t *handle_quit_command(command_t *command_state, buffer_t buffer, client_info_t *client_state) 
+command_t *handle_qquit_command(command_t *command_state, buffer_t buffer, client_info_t *client_state) 
 {
-
+    return handle_simple_command(command_state, buffer, OK);
 }
 
 
-command_t *handle_show_max_connections_command(command_t *command_state, buffer_t buffer, client_info_t *client_state) 
+command_t *handle_set_max_connections_command(command_t *command_state, buffer_t buffer, client_info_t *client_state) 
 {
-
+    return handle_simple_command(command_state, buffer, OK);
 }
 
 
 command_t *handle_add_user_command(command_t *command_state, buffer_t buffer, client_info_t *client_state) 
 {
-
+    return handle_simple_command(command_state, buffer, OK);
 }
 
 
 command_t *handle_delete_user_command(command_t *command_state, buffer_t buffer, client_info_t *client_state) 
 {
-
+    return handle_simple_command(command_state, buffer, OK);
 }
 
 
 command_t *handle_show_users_command(command_t *command_state, buffer_t buffer, client_info_t *client_state) 
 {
-
+    return handle_simple_command(command_state, buffer, OK);
 }
 
 command_t *handle_show_max_connections_command(command_t *command_state, buffer_t buffer, client_info_t *client_state) 
 {
-
+    return handle_simple_command(command_state, buffer, OK);
 }
 
 command_t *handle_set_maildir_command(command_t *command_state, buffer_t buffer, client_info_t *client_state) 
 {
-    
+    return handle_simple_command(command_state, buffer, OK);
 }
 
 command_t *handle_show_maildir_command(command_t *command_state, buffer_t buffer, client_info_t *client_state) 
 {
-    
+    return handle_simple_command(command_state, buffer, OK);  
 }
 command_t *handle_set_timeout_command(command_t *command_state, buffer_t buffer, client_info_t *client_state) 
 {
-    
+    return handle_simple_command(command_state, buffer, OK);    
 }
 
 command_t *handle_show_timeout_command(command_t *command_state, buffer_t buffer, client_info_t *client_state) 
 {
-    
+    return handle_simple_command(command_state, buffer, OK);    
 }
 command_t *handle_show_retrieved_bytes_command(command_t *command_state, buffer_t buffer, client_info_t *client_state) 
 {
-    
+    return handle_simple_command(command_state, buffer, OK);    
 }
+
 command_t *handle_show_retrieved_emails_count_command(command_t *command_state, buffer_t buffer, client_info_t *client_state) 
 {
-    
+    return handle_simple_command(command_state, buffer, OK);    
 }
 
 command_t *handle_show_removed_emails_count_command(command_t *command_state, buffer_t buffer, client_info_t *client_state) 
 {
-    
+    return handle_simple_command(command_state, buffer, OK);    
 }
 
 command_t *handle_show_curr_connection_count_command(command_t *command_state, buffer_t buffer, client_info_t *client_state) 
 {
-    
+    return handle_simple_command(command_state, buffer, OK);    
 }
+
 command_t *handle_show_curr_logged_in_command(command_t *command_state, buffer_t buffer, client_info_t *client_state) 
 {
-    
+    return handle_simple_command(command_state, buffer, OK);    
 }
+
 command_t *handle_show_hist_connection_count_command(command_t *command_state, buffer_t buffer, client_info_t *client_state) 
 {
-    
+    return handle_simple_command(command_state, buffer, OK);    
 }
+
 command_t *handle_show_hist_logged_in_count_command(command_t *command_state, buffer_t buffer, client_info_t *client_state) 
 {
-    
+    return handle_simple_command(command_state, buffer, OK);    
 }
+
 command_t *handle_help_command(command_t *command_state, buffer_t buffer, client_info_t *client_state) 
 {
-    
+    return handle_simple_command(command_state, buffer, OK);    
 }

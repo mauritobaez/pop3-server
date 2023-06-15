@@ -17,8 +17,6 @@ typedef struct server_metrics {
     size_t historic_loggedin_users;
 } server_metrics;
 
-extern server_metrics metrics;
-
 typedef struct user_t {
     char *username;
     char *password;
@@ -29,6 +27,7 @@ typedef struct server_config {
     size_t max_connections;
     size_t polling_timeout;
     queue_t users;
+    user_t peep_admin;
     char *maildir;
 } server_config;
 

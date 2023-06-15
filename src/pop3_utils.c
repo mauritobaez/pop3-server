@@ -35,8 +35,6 @@ command_t *handle_capa(command_t *command_state, buffer_t buffer, client_info_t 
 void free_event(struct parser_event *event, bool free_arguments);
 void free_pop3_client(pop3_client *client);
 
-server_config global_config;
-
 command_info commands[COMMAND_COUNT] = {
     {.name = "NOOP", .command_handler = (command_handler)&handle_noop, .type = NOOP, .valid_states = TRANSACTION},
     {.name = "USER", .command_handler = (command_handler)&handle_user_command, .type = USER, .valid_states = AUTH_PRE_USER},

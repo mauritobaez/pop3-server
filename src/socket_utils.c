@@ -25,7 +25,7 @@
 #include "util.h"
 
 socket_handler sockets[MAX_SOCKETS] = {0};
-unsigned int current_socket_count = 1;
+unsigned int current_socket_count = 2;
 
 
 int setup_passive_socket(char *socket_num)

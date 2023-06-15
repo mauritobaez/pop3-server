@@ -11,16 +11,19 @@
 */
 
 #define PATH_MAX 512
-#define TOTAL_ARGUMENTS 2
+#define TOTAL_ARGUMENTS 3
 
 server_metrics metrics;
+server_config global_config;
 
 int handle_user(int argc, char *arg[], server_config* config);
 int handle_mail(int argc, char *arg[], server_config* config);
+int handle_peep_admin(int argc, char *arg[], server_config* config);
 
 argument_t arguments[TOTAL_ARGUMENTS] = {
     {.argument = "-u", .handler = handle_user},
-    {.argument = "-m", .handler = handle_mail}
+    {.argument = "-m", .handler = handle_mail},
+    {.argument = "--peep-admin", .handler = handle_peep_admin}
 };
 
 int handle_user(int argc, char *arg[], server_config* config) {
@@ -59,6 +62,29 @@ int handle_mail(int argc, char *arg[], server_config* config) {
     return 1;
 }
 
+int handle_peep_admin(int argc, char *arg[], server_config* config) {
+    if (argc == 0) {
+        log(FATAL, "No matching property for argument: %s\n", "-u");
+    }
+    const char *delimiter = ":";
+    char *token = strtok(arg[0], delimiter);
+    if (token == NULL) {
+        log(FATAL, "Format for %s is <user>:<password>\n", "-a");
+    }
+    user_t user;
+    user.username = malloc(strlen(token) + 1);
+    strcpy(user.username, token);
+    token = strtok(NULL, delimiter);
+    if (token == NULL) {
+        free(user.username);
+        log(FATAL, "Format for %s is <user>:<password>\n", "-a");
+    }
+    user.password = malloc(strlen(token) + 1);
+    strcpy(user.password, token);
+    config->peep_admin.username = user.username;
+    config->peep_admin.password = user.password;
+    return 1;
+}
 
 server_config create_defaults(server_config config) {
     if (config.maildir == NULL) {

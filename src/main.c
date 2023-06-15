@@ -6,12 +6,13 @@
 
 #include "socket_utils.h"
 #include "pop3_utils.h"
+#include "peep_utils.h"
 #include "logger.h"
 #include "server.h"
 #include "directories.h"
 
 #define POP3_PORT "1110"
-
+#define PEEP_PORT "2110"
 
 static bool done = false;
 
@@ -29,12 +30,17 @@ int main(int argc, char *argv[])
     print_config(global_config);
     signal(SIGTERM, sigterm_handler);
     signal(SIGINT, sigterm_handler);
+    //TODO: chequear que funcione para IPv4 e IPv6 en pampero
     sockets[0].fd = setup_passive_socket(POP3_PORT);
-    //TODO: chequear que funcione para IPv4 e IPv6
     sockets[0].handler = (int (*)(void *, bool, bool)) & accept_pop3_connection;
     sockets[0].occupied = true;
     sockets[0].try_write = false;
     sockets[0].try_read = true;
+    sockets[1].fd = setup_passive_socket(PEEP_PORT);
+    sockets[1].handler = (int (*)(void *, bool, bool)) & accept_peep_connection;
+    sockets[1].occupied = true;
+    sockets[1].try_write = false;
+    sockets[1].try_read = true;
     
     while (!done)
     {
