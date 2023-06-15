@@ -88,7 +88,7 @@ int send_from_socket_buffer(int socket_index) {
     message[bytes_to_read] = '\0';
 
     size_t read_bytes = buffer_read(socket->writing_buffer, message, bytes_to_read);
-    ssize_t sent_bytes = send(socket->fd, message, read_bytes, 0);
+    ssize_t sent_bytes = send(socket->fd, message, read_bytes, MSG_NOSIGNAL);
 
     free(message);
     if (sent_bytes < 0)

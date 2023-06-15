@@ -1,4 +1,3 @@
-#define _BSD_SOURCE //Siempre hacerlo antes del include
 
 #include <stdio.h>
 #include <sys/stat.h>

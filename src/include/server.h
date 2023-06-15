@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include "queue.h"
 
+
 typedef struct server_metrics {
     size_t total_pop3_connections;
     size_t max_concurrent_pop3_connections;
@@ -15,6 +16,8 @@ typedef struct server_metrics {
     size_t current_loggedin_users;
     size_t historic_loggedin_users;
 } server_metrics;
+
+extern server_metrics metrics;
 
 typedef struct user_t {
     char *username;

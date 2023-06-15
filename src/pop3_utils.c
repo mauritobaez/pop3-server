@@ -457,6 +457,8 @@ command_t *handle_quit_command(command_t *command_state, buffer_t buffer, client
                 }else{
                     log(INFO, "Deleted email %s\n", email_path);
                     new_emails_count--;
+                    // deleted email metric
+                    add_email_removed();
                 }
                 free(email_path);
                 free(user_maildir);

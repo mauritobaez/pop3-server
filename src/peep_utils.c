@@ -3,12 +3,34 @@
 #include "peep_utils.h"
 #include "socket_utils.h"
 #include "command_parser.h"
+#include "server.h"
+
 
 command_t *example(command_t *command_state, buffer_t buffer, client_info_t *client_state);
 command_t *handle_unknown_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
+command_t *handle_authenticate_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
+command_t *handle_quit_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
+command_t *handle_show_max_connections_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
+command_t *handle_add_user_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
+command_t *handle_delete_user_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
+command_t *handle_show_users_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
+command_t *handle_show_max_connections_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
+command_t *handle_set_maildir_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
+command_t *handle_show_maildir_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
+command_t *handle_set_timeout_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
+command_t *handle_show_timeout_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
+command_t *handle_show_retrieved_bytes_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
+command_t *handle_show_retrieved_emails_count_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
+command_t *handle_show_removed_emails_count_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
+command_t *handle_show_curr_connection_count_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
+command_t *handle_show_curr_logged_in_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
+command_t *handle_show_hist_connection_count_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
+command_t *handle_show_hist_logged_in_count_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
+command_t *handle_help_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
+
 
 command_info peep_commands[PEEP_COMMAND_COUNT] = {
-    {.name = "a",   .command_handler = (command_handler)&example, .type = C_AUTHENTICATE, .valid_states = AUTHENTICATION},
+    {.name = "a",   .command_handler = (command_handler)&handle_a_command, .type = C_AUTHENTICATE, .valid_states = AUTHENTICATION},
     {.name = "q",   .command_handler = (command_handler)&example, .type = C_QUIT, .valid_states = AUTHENTICATION | AUTHENTICATED},
     {.name = "u+",  .command_handler = (command_handler)&example, .type = C_ADD_USER, .valid_states = AUTHENTICATED},
     {.name = "u-",  .command_handler = (command_handler)&example, .type = C_DELETE_USER, .valid_states = AUTHENTICATED},
@@ -51,7 +73,7 @@ int handle_peep_client(void *index, bool can_read, bool can_write) {
         }
     }
 
-    struct parser *parser = socket->client_info.peep_client_info->parser_state;
+    struct parser *parser = peep_client_info->parser_state;
 
     if (can_read)
     {
@@ -60,7 +82,7 @@ int handle_peep_client(void *index, bool can_read, bool can_write) {
         if(ans == -2)   goto close_peep_client;
     }
 
-    if (socket->client_info.peep_client_info->pending_command == NULL)
+    if (peep_client_info->pending_command == NULL)
     {
         struct parser_event *event = get_last_event(parser);
         if (event != NULL)
@@ -180,3 +202,96 @@ command_t *handle_unknown_command(command_t *command_state, buffer_t buffer, cli
     return handle_simple_command(command_state, buffer, "+");
 }
 
+
+command_t *handle_authenticate_command(command_t *command_state, buffer_t buffer, client_info_t *client_state) 
+{
+
+}
+
+
+command_t *handle_quit_command(command_t *command_state, buffer_t buffer, client_info_t *client_state) 
+{
+
+}
+
+
+command_t *handle_show_max_connections_command(command_t *command_state, buffer_t buffer, client_info_t *client_state) 
+{
+
+}
+
+
+command_t *handle_add_user_command(command_t *command_state, buffer_t buffer, client_info_t *client_state) 
+{
+
+}
+
+
+command_t *handle_delete_user_command(command_t *command_state, buffer_t buffer, client_info_t *client_state) 
+{
+
+}
+
+
+command_t *handle_show_users_command(command_t *command_state, buffer_t buffer, client_info_t *client_state) 
+{
+
+}
+
+command_t *handle_show_max_connections_command(command_t *command_state, buffer_t buffer, client_info_t *client_state) 
+{
+
+}
+
+command_t *handle_set_maildir_command(command_t *command_state, buffer_t buffer, client_info_t *client_state) 
+{
+    
+}
+
+command_t *handle_show_maildir_command(command_t *command_state, buffer_t buffer, client_info_t *client_state) 
+{
+    
+}
+command_t *handle_set_timeout_command(command_t *command_state, buffer_t buffer, client_info_t *client_state) 
+{
+    
+}
+
+command_t *handle_show_timeout_command(command_t *command_state, buffer_t buffer, client_info_t *client_state) 
+{
+    
+}
+command_t *handle_show_retrieved_bytes_command(command_t *command_state, buffer_t buffer, client_info_t *client_state) 
+{
+    
+}
+command_t *handle_show_retrieved_emails_count_command(command_t *command_state, buffer_t buffer, client_info_t *client_state) 
+{
+    
+}
+
+command_t *handle_show_removed_emails_count_command(command_t *command_state, buffer_t buffer, client_info_t *client_state) 
+{
+    
+}
+
+command_t *handle_show_curr_connection_count_command(command_t *command_state, buffer_t buffer, client_info_t *client_state) 
+{
+    
+}
+command_t *handle_show_curr_logged_in_command(command_t *command_state, buffer_t buffer, client_info_t *client_state) 
+{
+    
+}
+command_t *handle_show_hist_connection_count_command(command_t *command_state, buffer_t buffer, client_info_t *client_state) 
+{
+    
+}
+command_t *handle_show_hist_logged_in_count_command(command_t *command_state, buffer_t buffer, client_info_t *client_state) 
+{
+    
+}
+command_t *handle_help_command(command_t *command_state, buffer_t buffer, client_info_t *client_state) 
+{
+    
+}
