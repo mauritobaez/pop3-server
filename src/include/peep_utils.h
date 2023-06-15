@@ -10,7 +10,8 @@
 #define AUTHENTICATION 0x01
 #define AUTHENTICATED 0x02
 
-//values for command_type_t
+//todo: usar nombres mas expresivos.
+// values for command_type_t
 #define C_A 0       //a
 #define C_Q 1       //q
 #define C_U_P 2     //u+

@@ -24,6 +24,7 @@ sigterm_handler(const int signal) {
 
 int main(int argc, char *argv[])
 {
+    start_metrics();
     global_config = get_server_config(argc, argv);
     print_config(global_config);
     signal(SIGTERM, sigterm_handler);
@@ -92,10 +93,12 @@ int main(int argc, char *argv[])
             if (pfds[i].revents & POLLHUP)
             {
                 log(ERROR, "user hangup %s\n", strerror(errno));
+                remove_connection_metric();
                 free_client_socket(pfds[i].fd);
             } else if (pfds[i].revents & POLLIN || pfds[i].revents & POLLOUT)
             {
                 if (sockets[socket_index[i]].handler(&socket_index[i], pfds[i].revents & POLLIN, pfds[i].revents & POLLOUT) == -1) {
+                    remove_connection_metric();
                     free_client_socket(pfds[i].fd);
                 }
             }

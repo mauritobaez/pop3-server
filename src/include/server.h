@@ -9,10 +9,12 @@ typedef struct server_metrics {
     size_t max_concurrent_pop3_connections;
     size_t current_concurrent_pop3_connections;
     size_t sent_bytes;
-    size_t received_bytes;
     size_t emails_read;
     size_t emails_removed;
-} server_info;
+    size_t successful_quit;
+    size_t current_loggedin_users;
+    size_t historic_loggedin_users;
+} server_metrics;
 
 typedef struct user_t {
     char *username;
@@ -39,5 +41,17 @@ extern server_config global_config;
 server_config get_server_config(int argc, char *argv[]);
 void free_server_config(server_config config);
 void print_config(server_config config);
+
+extern server_metrics metrics;
+
+void start_metrics();
+void add_connection_metric();
+void remove_connection_metric();
+void add_sent_bytes(size_t bytes);
+void add_email_read();
+void add_email_removed();
+void add_successful_quit();
+void add_loggedin_user();
+void remove_loggedin_user();
 
 #endif

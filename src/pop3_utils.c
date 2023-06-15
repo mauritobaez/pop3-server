@@ -62,6 +62,8 @@ int handle_pop3_client(void *index, bool can_read, bool can_write)
 
         size_t read_bytes = buffer_read(socket->writing_buffer, message, bytes_to_read);//TODO:Ver phantom bytes
         ssize_t sent_bytes = send(socket->fd, message, read_bytes, 0);
+        add_sent_bytes(sent_bytes);
+
         free(message);
         if (sent_bytes < 0)
         {
@@ -182,6 +184,7 @@ int handle_pop3_client(void *index, bool can_read, bool can_write)
 close_client:
     if (sockets[i].client_info.pop3_client_info->current_state & TRANSACTION)
     {
+        remove_loggedin_user();
         sockets[i].client_info.pop3_client_info->selected_user->locked = false;
     }
     // MANAGE STATE
@@ -226,7 +229,7 @@ int accept_pop3_connection(void *index, bool can_read, bool can_write)
                 sockets[i].client_info.pop3_client_info->selected_user = NULL;
                 sockets[i].writing_buffer = buffer_init(BUFFER_SIZE);
                 current_socket_count += 1;
-
+                add_connection_metric();
                 // GREETING
                 command_t greeting_state = {
                     .type = GREETING,
@@ -375,9 +378,9 @@ command_t *handle_retr_write_command(command_t *command_state, buffer_t buffer, 
     return command_state;
 }
 
-command_t *handle_retr_command(command_t *command_state, buffer_t buffer, client_info_t *client_state_)
+command_t *handle_retr_command(command_t *command_state, buffer_t buffer, client_info_t *client_state)
 {
-    pop3_client* client_state = client_state_->pop3_client_info;
+    pop3_client* pop3_state = client_state->pop3_client_info;
     command_t *command = calloc(1,sizeof(command_t));
     if (RETR_STATE(command_state) == NULL || RETR_STATE(command_state)->emailfd == 0)
     {
@@ -394,13 +397,13 @@ command_t *handle_retr_command(command_t *command_state, buffer_t buffer, client
                 free(command);
                 return handle_simple_command(command_state, buffer, INVALID_NUMBER_ARGUMENT);
             }
-            email_metadata_t *email = get_email_at_index(client_state, index - 1);
+            email_metadata_t *email = get_email_at_index(pop3_state, index - 1);
             if (email == NULL)
             {
                 free(command);
                 return handle_simple_command(command_state, buffer, RETR_ERR_FOUND_MSG);
             }
-            int emailfd = open_email_file(client_state, email->filename);
+            int emailfd = open_email_file(pop3_state, email->filename);
             // todo: error opening file
             int flags = fcntl(emailfd, F_GETFL, 0);
             fcntl(emailfd, F_SETFL, flags | O_NONBLOCK);
@@ -425,8 +428,8 @@ command_t *handle_retr_command(command_t *command_state, buffer_t buffer, client
     command->answer_alloc = true;
     command->command_handler = command_state->command_handler;
     command->type = RETR;
-
-    return handle_retr_write_command(command, buffer, client_state_);
+    add_email_read();
+    return handle_retr_write_command(command, buffer, client_state);
 }
 
 command_t *handle_pass_command(command_t *command_state, buffer_t buffer, client_info_t *client_state_)
@@ -447,7 +450,7 @@ command_t *handle_pass_command(command_t *command_state, buffer_t buffer, client
                     client_state->selected_user->locked = true;
                     // TODO: ACA hacer lo de LOCK para el usuario si no esta disponible pones -ERR unable to lock maildrop
                     // Y cuanod se haga QUIT liberar el lock
-
+                    add_loggedin_user();
                     char *user_maildir = join_path(global_config.maildir, client_state->selected_user->username);
                     client_state->emails = get_file_info(user_maildir, &(client_state->emails_count));
                     log(INFO, "retrieved emails: %ld\n", client_state->emails_count);
@@ -511,6 +514,8 @@ command_t *handle_quit_command(command_t *command_state, buffer_t buffer, client
         if(error){
             snprintf(command_state->answer + written_chars,QUIT_UNAUTHENTICATED_MSG_ERROR_LENGTH, QUIT_UNAUTHENTICATED_MSG_ERROR);
         }
+
+        add_successful_quit();
         return handle_simple_command(command_state, buffer, NULL);
     }
     return handle_simple_command(command_state, buffer, answer);

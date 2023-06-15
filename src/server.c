@@ -13,6 +13,8 @@
 #define PATH_MAX 512
 #define TOTAL_ARGUMENTS 2
 
+server_metrics metrics;
+
 int handle_user(int argc, char *arg[], server_config* config);
 int handle_mail(int argc, char *arg[], server_config* config);
 
@@ -114,4 +116,54 @@ void free_server_config(server_config config) {
         free(user);
     }
     free(config.users);
+}
+
+void start_metrics() {
+    metrics.current_concurrent_pop3_connections = 0;
+    metrics.emails_read = 0;
+    metrics.emails_removed = 0;
+    metrics.successful_quit = 0;
+    metrics.max_concurrent_pop3_connections = 0;
+    metrics.sent_bytes = 0;
+    metrics.total_pop3_connections = 0;
+    metrics.current_loggedin_users = 0;
+    metrics.historic_loggedin_users = 0;
+}
+
+void add_connection_metric() {
+    metrics.total_pop3_connections += 1;
+    metrics.current_concurrent_pop3_connections += 1;
+    if (metrics.current_concurrent_pop3_connections > metrics.max_concurrent_pop3_connections) {
+        metrics.max_concurrent_pop3_connections = metrics.current_concurrent_pop3_connections;
+    }
+}
+
+void remove_connection_metric() {
+    metrics.current_concurrent_pop3_connections -= 1;
+}
+
+void add_sent_bytes(size_t bytes) {
+    metrics.sent_bytes += bytes;
+}
+
+void add_email_read() {
+    metrics.emails_read += 1;
+}
+void add_email_removed() {
+    metrics.emails_removed += 1;
+}
+
+void add_successful_quit() {
+    metrics.successful_quit += 1;
+}
+
+void add_loggedin_user() {
+    metrics.current_loggedin_users += 1;
+    if (metrics.current_loggedin_users > metrics.historic_loggedin_users) {
+        metrics.historic_loggedin_users = metrics.current_loggedin_users;
+    }
+}
+
+void remove_loggedin_user() {
+    metrics.current_loggedin_users -= 1;
 }
