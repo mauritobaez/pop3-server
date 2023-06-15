@@ -24,7 +24,6 @@
 #include "logger.h"
 #include "util.h"
 
-
 socket_handler sockets[MAX_SOCKETS] = {0};
 unsigned int current_socket_count = 1;
 
@@ -77,6 +76,71 @@ int setup_passive_socket(char *socket_num)
 error:
     close(serv_sock);
     return -1;
+}
+
+int send_from_socket_buffer(int socket_index) {
+
+    socket_handler *socket = &sockets[socket_index];
+    size_t bytes_to_read = buffer_available_chars_count(socket->writing_buffer);
+    char *message = malloc(bytes_to_read + 1);
+    if (message == NULL)
+        LOG_AND_RETURN(ERROR, "Error writing to peep client", -1);
+    message[bytes_to_read] = '\0';
+
+    size_t read_bytes = buffer_read(socket->writing_buffer, message, bytes_to_read);
+    ssize_t sent_bytes = send(socket->fd, message, read_bytes, 0);
+
+    free(message);
+    if (sent_bytes < 0)
+    {
+        char error_log[ERROR_LOG_LENGTH] = {0};
+        snprintf(error_log, ERROR_LOG_LENGTH, "Socket %d - unknown error\n", socket_index);
+        LOG_AND_RETURN(ERROR, error_log, -2);
+    }
+
+    buffer_advance_read(socket->writing_buffer, sent_bytes);
+
+    size_t remaining_bytes = buffer_available_chars_count(socket->writing_buffer);
+
+    // si ya vaciamos todo el buffer de salida, le decimos al selector que no nos despierte para escribir
+    if (remaining_bytes == 0)
+    {
+        socket->try_write = false;
+    }
+    return sent_bytes;
+}
+
+int recv_to_parser(int socket_index, struct parser* parser, size_t recv_buffer_size) {
+    socket_handler* socket = &sockets[socket_index];
+    char *message = malloc(sizeof(char) * recv_buffer_size);
+    if (message == NULL)
+        return -1;
+    ssize_t received_bytes = recv(socket->fd, message, recv_buffer_size, 0);
+    // Si recv devuelve 0 es porque se desconecto.
+    if (received_bytes <= 0)
+    {
+        free(message);
+        if (received_bytes < 0)
+            return -1;
+        else
+        {
+            char error_log[ERROR_LOG_LENGTH] = {0};
+            snprintf(error_log, ERROR_LOG_LENGTH, "Socket %d - connection lost\n", socket_index);
+            LOG_AND_RETURN(INFO, error_log, -2);
+        }
+    }
+
+    log(DEBUG, "Received %ld bytes from socket %d", received_bytes, socket->fd);
+
+    for (int i = 0; i < received_bytes; i += 1)
+    {
+        if (parser_feed(parser, message[i])->finished)
+        {
+            finish_event_item(parser);
+        }
+    }
+    free(message);
+    return received_bytes;
 }
 
 socket_handler* get_socket_handler_with_fd(int fd) {

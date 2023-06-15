@@ -3,6 +3,7 @@
 
 #include "parser.h"
 #include <ctype.h>
+#include <stdbool.h>
 
 // setea la máquina de estados que es el parser para ser utilizado en pop3
 // Glosario: <...> = loop, ANY: cualquier character que no esté ya en una arista saliente de ese estado/vértice
@@ -40,5 +41,7 @@ void finish(struct parser_event *ret, const uint8_t c);
 char* str_to_upper(char* str);
 //Liberar todos los mallocs de la definition
 void free_parser_def(struct parser_definition* par_def);
+
+void free_event(struct parser_event *event, bool free_arguments);
 
 #endif

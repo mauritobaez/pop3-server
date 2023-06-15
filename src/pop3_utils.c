@@ -16,6 +16,8 @@
 #include "server.h"
 #include "responses.h"
 
+#define RECV_BUFFER_SIZE 512
+
 command_t *handle_noop(command_t *command_state, buffer_t buffer, client_info_t *client_state);
 command_t *handle_user_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
 command_t *handle_pass_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
@@ -51,83 +53,42 @@ int handle_pop3_client(void *index, bool can_read, bool can_write)
 {
     int i = *(int *)index;
     socket_handler *socket = &sockets[i];
+    pop3_client* pop3_client_info = socket->client_info.pop3_client_info;
 
     if (can_write)
     {
-        size_t bytes_to_read = buffer_available_chars_count(socket->writing_buffer);
-        char *message = malloc(bytes_to_read + 1);
-        if (message == NULL)
-            LOG_AND_RETURN(ERROR, "Error writing to pop3 client", -1);
-        message[bytes_to_read] = '\0';
+        int sent_bytes = send_from_socket_buffer(i);
+        if(sent_bytes == -1)   return -1;
+        if(sent_bytes == -2)   goto close_client;
 
-        size_t read_bytes = buffer_read(socket->writing_buffer, message, bytes_to_read);//TODO:Ver phantom bytes
-        ssize_t sent_bytes = send(socket->fd, message, read_bytes, 0);
         add_sent_bytes(sent_bytes);
-
-        free(message);
-        if (sent_bytes < 0)
+        
+        if (buffer_available_chars_count(socket->writing_buffer) == 0 && pop3_client_info->closing)
         {
-            log(INFO, "Socket %d - unknown error\n", i);
+            log(INFO, "Socket %d - closing session\n", i);
             goto close_client;
         }
-
-        buffer_advance_read(socket->writing_buffer, sent_bytes);
-
-        // si ya vaciamos todo el buffer de salida, le decimos al selector que no nos despierte para escribir
-        if (buffer_available_chars_count(socket->writing_buffer) == 0)
-        {
-            socket->try_write = false;
-            if (socket->client_info.pop3_client_info->closing)
-            {
-                log(INFO, "Socket %d - closing session\n", i);
-                goto close_client;
-            }
-        }
+        
         // ahora que hicimos lugar en el buffer, intentamos resolver el comando que haya quedado pendiente
-        if (socket->client_info.pop3_client_info->pending_command != NULL)
+        if (pop3_client_info->pending_command != NULL)
         {
-            command_t *old_pending_command = socket->client_info.pop3_client_info->pending_command;
-            socket->client_info.pop3_client_info->pending_command = old_pending_command->command_handler(old_pending_command, socket->writing_buffer, &(socket->client_info));
+            command_t *old_pending_command = pop3_client_info->pending_command;
+            pop3_client_info->pending_command = old_pending_command->command_handler(old_pending_command, socket->writing_buffer, &(socket->client_info));
             socket->try_write = true;
             free(old_pending_command);
         }
     }
 
-    struct parser *parser = socket->client_info.pop3_client_info->parser_state;
+    struct parser *parser = pop3_client_info->parser_state;
 
-    if (can_read && !socket->client_info.pop3_client_info->closing)
+    if (can_read && !pop3_client_info->closing)
     {
-        // todo: magic number
-        char *message = malloc(sizeof(char) * 512);
-        if (message == NULL)
-            LOG_AND_RETURN(ERROR, "Error reading from pop3 client", -1);
-        ssize_t received_bytes = recv(socket->fd, message, 512, 0);
-        // Si recv devuelve 0 es porque se desconecto.
-        if (received_bytes <= 0)
-        {
-            free(message);
-            if (received_bytes < 0)
-                LOG_AND_RETURN(ERROR, "Error reading from pop3 client", -1);
-            else
-            {
-                log(INFO, "Socket %d - connection lost\n", i);
-                goto close_client;
-            }
-        }
-
-        log(DEBUG, "Received %ld bytes from socket %d", received_bytes, socket->fd);
-
-        for (int i = 0; i < received_bytes; i += 1)
-        {
-            if (parser_feed(parser, message[i])->finished)
-            {
-                finish_event_item(parser);
-            }
-        }
-        free(message);
+        int ans = recv_to_parser(i, pop3_client_info->parser_state, RECV_BUFFER_SIZE);
+        if(ans == -1)   LOG_AND_RETURN(ERROR, "Error reading from pop3 client", -1);
+        if(ans == -2)   goto close_client;
     }
 
-    if (socket->client_info.pop3_client_info->pending_command == NULL && !socket->client_info.pop3_client_info->closing)
+    if (pop3_client_info->pending_command == NULL && !pop3_client_info->closing)
     {
         struct parser_event *event = get_last_event(parser);
         if (event != NULL)
@@ -138,7 +99,7 @@ int handle_pop3_client(void *index, bool can_read, bool can_write)
                 str_to_upper(event->args[0]);
                 for (int i = 0; i < COMMAND_COUNT && !found_command; i++)
                 {
-                    if (((commands[i].valid_states & socket->client_info.pop3_client_info->current_state) > 0) && strcmp(event->args[0], commands[i].name) == 0)
+                    if (((commands[i].valid_states & pop3_client_info->current_state) > 0) && strcmp(event->args[0], commands[i].name) == 0)
                     {
                         found_command = true;
                         command_t command_state = {
@@ -154,7 +115,7 @@ int handle_pop3_client(void *index, bool can_read, bool can_write)
 
                         log(DEBUG, "Command %s received with args %s and %s\n", event->args[0], event->args[1], event->args[2]);
 
-                        socket->client_info.pop3_client_info->pending_command = command_state.command_handler(&command_state, socket->writing_buffer, &(socket->client_info));
+                        pop3_client_info->pending_command = command_state.command_handler(&command_state, socket->writing_buffer, &(socket->client_info));
                         socket->try_write = true;
                         free_event(event, false);
                     }
@@ -173,7 +134,7 @@ int handle_pop3_client(void *index, bool can_read, bool can_write)
                     .meta_data = NULL,
                 };
                 log(DEBUG, "Invalid command %s received\n", event->args[0]);
-                socket->client_info.pop3_client_info->pending_command = command_state.command_handler(&command_state, socket->writing_buffer, &(socket->client_info));
+                pop3_client_info->pending_command = command_state.command_handler(&command_state, socket->writing_buffer, &(socket->client_info));
                 socket->try_write = true;
                 free_event(event, true);
             }
@@ -227,7 +188,7 @@ int accept_pop3_connection(void *index, bool can_read, bool can_write)
                 sockets[i].client_info.pop3_client_info->parser_state = set_up_parser();
                 sockets[i].client_info.pop3_client_info->closing = false;
                 sockets[i].client_info.pop3_client_info->selected_user = NULL;
-                sockets[i].writing_buffer = buffer_init(BUFFER_SIZE);
+                sockets[i].writing_buffer = buffer_init(POP3_WRITING_BUFFER_SIZE);
                 current_socket_count += 1;
                 add_connection_metric();
                 // GREETING
@@ -664,17 +625,6 @@ command_t *handle_dele_command(command_t *command_state, buffer_t buffer, client
     return handle_simple_command(command_state, buffer, response);
 }
 
-void free_event(struct parser_event *event, bool free_arguments)
-{
-    if (free_arguments)
-    {
-        free(event->args[1]);
-        free(event->args[2]);
-    }
-    free(event->args[0]);
-    free(event);
-}
-
 void free_pop3_client(pop3_client *client)
 {
     parser_destroy(client->parser_state);
@@ -683,7 +633,7 @@ void free_pop3_client(pop3_client *client)
         free(client->emails[i].filename);
     }
     free(client->emails);
-    free(client->pending_command);
+    if(client->pending_command != NULL) free(client->pending_command);
     free(client);
 }
 void free_client(int index)

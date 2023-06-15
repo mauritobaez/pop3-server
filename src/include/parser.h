@@ -97,16 +97,4 @@ struct parser_event * get_last_event(struct parser * p);
 //hace free de los nodos event, pero no de los argumentos
 void free_event_list(struct parser * p);
 
-/*
-typedef struct joined_parser
-{
-    struct parser **parsers;
-    size_t n;
-} joined_parser_t;
-
-joined_parser_t join_parsers(int count, ...);
-struct parser_event *feed_joined_parser(joined_parser_t parsers, const uint8_t c);
-void destroy_joined_parsers(joined_parser_t parsers);
-void reset_joined_parsers(joined_parser_t parsers);
-*/
 #endif

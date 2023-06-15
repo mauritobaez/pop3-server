@@ -5,35 +5,45 @@
 #include "client_status.h"
 
 #define MAX_COMMAND_LENGTH 264
+#define PEEP_WRITING_BUFFER_SIZE 512
 
 //values for state_t
 #define AUTHENTICATION 0x01
 #define AUTHENTICATED 0x02
 
-//todo: usar nombres mas expresivos.
+#define PEEP_COMMAND_COUNT 19
+
 // values for command_type_t
-#define C_A 0       //a
-#define C_Q 1       //q
-#define C_U_P 2     //u+
-#define C_U_M 3     //u-
-#define C_U_Q 4     //u?
-#define C_C_E 5     //c=
-#define C_C_Q 6     //c?
-#define C_M_E 7     //m=
-#define C_M_Q 8     //m?
-#define C_T_E 9     //t=
-#define C_T_Q 10    //t?
-#define C_CU_Q 11    //cu?
-#define C_HC_Q 12    //hc?
-#define C_RB_Q 13    //rb?
-#define C_RE_Q 14    //re?
-#define C_XE_Q 15    //xe?
-#define C_H_Q 16    //h?
+#define C_AUTHENTICATE                  0     //a
+#define C_QUIT                          1     //q
+#define C_ADD_USER                      2     //u+
+#define C_DELETE_USER                   3     //u-
+#define C_SHOW_USERS                    4     //u?
+#define C_SET_MAX_CONNECTIONS           5     //c=
+#define C_SHOW_MAX_CONNECTIONS          6     //c?
+#define C_SET_MAILDIR                   7     //m=
+#define C_SHOW_MAILDIR                  8     //m?
+#define C_SET_TIMEOUT                   9     //t=
+#define C_SHOW_TIMEOUT                  10    //t?
+#define C_SHOW_RETRIEVED_BYTES          11    //rb?
+#define C_SHOW_RETRIEVED_EMAILS_COUNT   12    //re?
+#define C_SHOW_REMOVED_EMAILS_COUNT     13    //xe?
+#define C_SHOW_CURR_CONNECTION_COUNT    14    //cc?
+#define C_SHOW_CURR_LOGGED_IN           15    //cu?
+#define C_SHOW_HIST_CONNECTION_COUNT    16    //hc?
+#define C_SHOW_HIST_LOGGED_IN_COUNT     17    //hu?
+#define C_HELP                          18    //h?
+#define C_UNKNOWN                       19
+
 
 typedef struct peep_client {
     state_t state;
-    char input[MAX_COMMAND_LENGTH];
+    struct parser* parser_state;
     command_t* pending_command;
 } peep_client;
+
+int handle_peep_client(void *index, bool can_read, bool can_write);
+int accept_peep_connection(void *index, bool can_read, bool can_write);
+void free_peep_client(int index);
 
 #endif

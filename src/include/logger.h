@@ -3,6 +3,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <string.h>
+
+#define ERROR_LOG_LENGTH 64
 
 #define LOG_AND_RETURN(error_level, error_message, return_value)           \
     do                                                                     \

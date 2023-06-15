@@ -134,3 +134,14 @@ void free_parser_def(struct parser_definition* par_def){
     free(par_def->states);
     free(par_def);
 }
+
+void free_event(struct parser_event *event, bool free_arguments)
+{
+    if (free_arguments)
+    {
+        free(event->args[1]);
+        free(event->args[2]);
+    }
+    free(event->args[0]);
+    free(event);
+}
