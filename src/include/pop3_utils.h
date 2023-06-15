@@ -6,13 +6,14 @@
 #include "buffer.h"
 #include "parser.h"
 #include "server.h"
+#include "command_utils.h"
 
 
 #define COMMAND_COUNT 10
 #define BUFFER_SIZE 1024
 #define MAX_LINE 512
 
-
+//values for state_t
 #define AUTH_PRE_USER 0x01
 #define AUTH_POST_USER 0x02
 #define TRANSACTION 0x04
@@ -21,11 +22,23 @@
 #define MAX_LISTING_SIZE 64
 #define INITIAL_LISTING_COUNT 10
 
-typedef uint8_t state_t;
-typedef enum {INVALID,NOOP,USER,PASS,QUIT,STAT,LIST,RETR,DELE,RSET,CAPA,GREETING} command_type_t;
-typedef struct command_t command_t;
+//values for command_type_t
+#define INVALID 0
+#define NOOP 1
+#define USER 2
+#define PASS 3
+#define QUIT 4
+#define STAT 5
+#define LIST 6
+#define RETR 7
+#define DELE 8
+#define RSET 9
+#define CAPA 10
+#define GREETING 11 
+
+#define RETR_STATE(command) ((retr_state_t*)((command)->meta_data))
+
 typedef struct pop3_client pop3_client;
-typedef command_t* (*command_handler)(command_t *, buffer_t, pop3_client *);
 
 typedef struct retr_state_t {
     int emailfd; // email file descriptor
@@ -34,25 +47,6 @@ typedef struct retr_state_t {
     bool greeting_done; // greeting done
     bool final_dot;
 } retr_state_t;
-
-struct command_t {
-    command_t* (*command_handler)(command_t* command_state, buffer_t buffer, pop3_client* new_state);
-    //FILE* file;
-    command_type_t type;
-    char* answer;
-    bool answer_alloc;
-    unsigned int index;
-    char* args[2];
-    retr_state_t retr_state;
-};
-
-typedef struct command_info
-{
-    char* name;
-    command_t* (*command_handler)(command_t* command_state, buffer_t buffer, pop3_client* new_state);
-    command_type_t type;
-    state_t valid_states;
-} command_info;
 
 typedef struct email_metadata_t {
     char* filename;
@@ -69,7 +63,6 @@ typedef struct pop3_client {
     size_t emails_count;
     bool closing;
 } pop3_client;
-
 
 // devuelve -1 si hubo un error, loguea el error solo
 int handle_pop3_client(void *index, bool can_read, bool can_write);

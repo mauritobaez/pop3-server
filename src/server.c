@@ -98,7 +98,6 @@ server_config get_server_config(int argc, char *argv[]) {
 
 void print_config(server_config config) {
     log(INFO, "MAX CONNECTIONS %ld, TIMEOUT %ld\n", config.max_connections, config.polling_timeout);
-    size_t queue_size = size(config.users);
     iterator_to_begin(config.users);
     
     while(iterator_has_next(config.users)){

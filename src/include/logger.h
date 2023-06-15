@@ -2,6 +2,14 @@
 #define LOGGER_H
 #include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
+
+#define LOG_AND_RETURN(error_level, error_message, return_value)           \
+    do                                                                     \
+    {                                                                      \
+        log((error_level), "%s - %s\n", (error_message), strerror(errno)); \
+        return (return_value);                                             \
+    } while (0)
 
 typedef enum
 {

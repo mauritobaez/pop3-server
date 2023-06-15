@@ -5,14 +5,12 @@
 
 #include "buffer.h"
 #include "parser.h"
-#include "pop3_utils.h"
 
-typedef enum blocking_state
-{
-    READING,
-    WRITING,
-    PROCEED
-} blocking_state;
+
+typedef union client_info_t {
+    struct pop3_client* pop3_client_info;
+    struct peep_client* peep_client_info;
+} client_info_t;
 
 typedef struct socket_handler
 {
@@ -21,7 +19,7 @@ typedef struct socket_handler
     bool occupied;
     bool try_read;
     bool try_write;
-    pop3_client* pop3_client_info;
+    client_info_t client_info;
     buffer_t writing_buffer;
 } socket_handler;
 

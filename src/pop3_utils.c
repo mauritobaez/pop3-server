@@ -16,27 +16,20 @@
 #include "server.h"
 #include "responses.h"
 
-#define LOG_AND_RETURN(error_level, error_message, return_value)           \
-    do                                                                     \
-    {                                                                      \
-        log((error_level), "%s - %s\n", (error_message), strerror(errno)); \
-        return (return_value);                                             \
-    } while (0)
+command_t *handle_noop(command_t *command_state, buffer_t buffer, client_info_t *client_state);
+command_t *handle_user_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
+command_t *handle_pass_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
+command_t *handle_invalid_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
+command_t *handle_greeting_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
+command_t *handle_quit_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
+command_t *handle_stat_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
+command_t *handle_list_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
+command_t *handle_retr_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
+command_t *handle_rset_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
+command_t *handle_dele_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
+command_t *handle_capa(command_t *command_state, buffer_t buffer, client_info_t *client_state);
 
-command_t *handle_noop(command_t *command_state, buffer_t buffer, pop3_client *client_state);
-command_t *handle_user_command(command_t *command_state, buffer_t buffer, pop3_client *client_state);
-command_t *handle_pass_command(command_t *command_state, buffer_t buffer, pop3_client *client_state);
-command_t *handle_invalid_command(command_t *command_state, buffer_t buffer, pop3_client *client_state);
-command_t *handle_greeting_command(command_t *command_state, buffer_t buffer, pop3_client *client_state);
-command_t *handle_quit_command(command_t *command_state, buffer_t buffer, pop3_client *client_state);
-command_t *handle_stat_command(command_t *command_state, buffer_t buffer, pop3_client *client_state);
-command_t *handle_list_command(command_t *command_state, buffer_t buffer, pop3_client *client_state);
-command_t *handle_retr_command(command_t *command_state, buffer_t buffer, pop3_client *client_state);
-command_t *handle_rset_command(command_t *command_state, buffer_t buffer, pop3_client *client_state);
-command_t *handle_dele_command(command_t *command_state, buffer_t buffer, pop3_client *client_state);
-command_t *handle_capa(command_t *command_state, buffer_t buffer, pop3_client *client_state);
 
-void free_command(command_t *command);
 void free_event(struct parser_event *event, bool free_arguments);
 void free_pop3_client(pop3_client *client);
 
@@ -82,25 +75,25 @@ int handle_pop3_client(void *index, bool can_read, bool can_write)
         if (buffer_available_chars_count(socket->writing_buffer) == 0)
         {
             socket->try_write = false;
-            if (socket->pop3_client_info->closing)
+            if (socket->client_info.pop3_client_info->closing)
             {
                 log(INFO, "Socket %d - closing session\n", i);
                 goto close_client;
             }
         }
         // ahora que hicimos lugar en el buffer, intentamos resolver el comando que haya quedado pendiente
-        if (socket->pop3_client_info->pending_command != NULL)
+        if (socket->client_info.pop3_client_info->pending_command != NULL)
         {
-            command_t *old_pending_command = socket->pop3_client_info->pending_command;
-            socket->pop3_client_info->pending_command = old_pending_command->command_handler(old_pending_command, socket->writing_buffer, socket->pop3_client_info);
+            command_t *old_pending_command = socket->client_info.pop3_client_info->pending_command;
+            socket->client_info.pop3_client_info->pending_command = old_pending_command->command_handler(old_pending_command, socket->writing_buffer, &(socket->client_info));
             socket->try_write = true;
             free(old_pending_command);
         }
     }
 
-    struct parser *parser = socket->pop3_client_info->parser_state;
+    struct parser *parser = socket->client_info.pop3_client_info->parser_state;
 
-    if (can_read && !socket->pop3_client_info->closing)
+    if (can_read && !socket->client_info.pop3_client_info->closing)
     {
         // todo: magic number
         char *message = malloc(sizeof(char) * 512);
@@ -132,7 +125,7 @@ int handle_pop3_client(void *index, bool can_read, bool can_write)
         free(message);
     }
 
-    if (socket->pop3_client_info->pending_command == NULL && !socket->pop3_client_info->closing)
+    if (socket->client_info.pop3_client_info->pending_command == NULL && !socket->client_info.pop3_client_info->closing)
     {
         struct parser_event *event = get_last_event(parser);
         if (event != NULL)
@@ -143,7 +136,7 @@ int handle_pop3_client(void *index, bool can_read, bool can_write)
                 str_to_upper(event->args[0]);
                 for (int i = 0; i < COMMAND_COUNT && !found_command; i++)
                 {
-                    if (((commands[i].valid_states & socket->pop3_client_info->current_state) > 0) && strcmp(event->args[0], commands[i].name) == 0)
+                    if (((commands[i].valid_states & socket->client_info.pop3_client_info->current_state) > 0) && strcmp(event->args[0], commands[i].name) == 0)
                     {
                         found_command = true;
                         command_t command_state = {
@@ -154,14 +147,12 @@ int handle_pop3_client(void *index, bool can_read, bool can_write)
                             .answer = NULL,
                             .answer_alloc = false,
                             .index = 0,
-                            .retr_state.emailfd = 0,
-                            .retr_state.finished_line = false,
-                            .retr_state.multiline_state = 0,
+                            .meta_data = NULL
                         };
 
                         log(DEBUG, "Command %s received with args %s and %s\n", event->args[0], event->args[1], event->args[2]);
 
-                        socket->pop3_client_info->pending_command = command_state.command_handler(&command_state, socket->writing_buffer, socket->pop3_client_info);
+                        socket->client_info.pop3_client_info->pending_command = command_state.command_handler(&command_state, socket->writing_buffer, &(socket->client_info));
                         socket->try_write = true;
                         free_event(event, false);
                     }
@@ -177,9 +168,10 @@ int handle_pop3_client(void *index, bool can_read, bool can_write)
                     .answer = NULL,
                     .answer_alloc = false,
                     .index = 0,
+                    .meta_data = NULL,
                 };
                 log(DEBUG, "Invalid command %s received\n", event->args[0]);
-                socket->pop3_client_info->pending_command = command_state.command_handler(&command_state, socket->writing_buffer, socket->pop3_client_info);
+                socket->client_info.pop3_client_info->pending_command = command_state.command_handler(&command_state, socket->writing_buffer, &(socket->client_info));
                 socket->try_write = true;
                 free_event(event, true);
             }
@@ -188,9 +180,9 @@ int handle_pop3_client(void *index, bool can_read, bool can_write)
     return 0;
 
 close_client:
-    if (sockets[i].pop3_client_info->current_state & TRANSACTION)
+    if (sockets[i].client_info.pop3_client_info->current_state & TRANSACTION)
     {
-        sockets[i].pop3_client_info->selected_user->locked = false;
+        sockets[i].client_info.pop3_client_info->selected_user->locked = false;
     }
     // MANAGE STATE
     free_client(i);
@@ -227,11 +219,11 @@ int accept_pop3_connection(void *index, bool can_read, bool can_write)
                 sockets[i].occupied = true;
                 sockets[i].handler = (int (*)(void *, bool, bool)) & handle_pop3_client;
                 sockets[i].try_read = true;
-                sockets[i].pop3_client_info = calloc(1, sizeof(pop3_client));
-                sockets[i].pop3_client_info->current_state = AUTH_PRE_USER;
-                sockets[i].pop3_client_info->parser_state = set_up_parser();
-                sockets[i].pop3_client_info->closing = false;
-                sockets[i].pop3_client_info->selected_user = NULL;
+                sockets[i].client_info.pop3_client_info = calloc(1, sizeof(pop3_client));
+                sockets[i].client_info.pop3_client_info->current_state = AUTH_PRE_USER;
+                sockets[i].client_info.pop3_client_info->parser_state = set_up_parser();
+                sockets[i].client_info.pop3_client_info->closing = false;
+                sockets[i].client_info.pop3_client_info->selected_user = NULL;
                 sockets[i].writing_buffer = buffer_init(BUFFER_SIZE);
                 current_socket_count += 1;
 
@@ -243,9 +235,11 @@ int accept_pop3_connection(void *index, bool can_read, bool can_write)
                     .args[1] = NULL,
                     .answer = NULL,
                     .answer_alloc = false,
-                    .index = 0};
+                    .index = 0,
+                    .meta_data = NULL
+                    };
 
-                sockets[i].pop3_client_info->pending_command = handle_greeting_command(&greeting_state, sockets[i].writing_buffer, sockets[i].pop3_client_info);
+                sockets[i].client_info.pop3_client_info->pending_command = handle_greeting_command(&greeting_state, sockets[i].writing_buffer, &(sockets[i].client_info));
                 sockets[i].try_write = true;
                 return 0;
             }
@@ -253,57 +247,11 @@ int accept_pop3_connection(void *index, bool can_read, bool can_write)
     }
     return -1;
 }
-/*  Simple command siempre es llamado por otro comando, por lo que tenes que tener en cuenta
-    el caso en que no termine de escribir y volver a llamar a simple command de forma correcta.
-    Adentro se hace un malloc, sirve para poder volver a llamar al comando que llamo a simple command
-    para que vuelva a intentar escribir, si se vuelve a llamar se encarga despues de liberar el viejo y
-    el nuevo malloc si se termina de escribir en esa llamda.
-    Si haces un malloc sobre el answer, pasarlo por state->answer y poner alloc_answer = true.
-    Si no usas simple command para escribir, debes hacer un malloc del command_state en c da llamada y liberarlo
-    si terminas de escribir, sino deberias copiar al nuevo malloc lo necesario para seguir escribiendo en la siguiente llamada */
-command_t *handle_simple_command(command_t *command_state, buffer_t buffer, char *answer)
-{
-    command_t *command = malloc(sizeof(command_t));
-    if (command == NULL)
-        LOG_AND_RETURN(FATAL, "Error handling command", command);
-    if (command_state->answer == NULL)
-    {
-        if (answer == NULL)
-        {
-            log(FATAL, "Unexpected error \n%s", "");
-        }
-        size_t length = strlen(answer);
-        command->answer = malloc(length + 1);
-        command->answer_alloc = true;
-        if (command->answer == NULL)
-            LOG_AND_RETURN(FATAL, "Error handling command", command);
-        strncpy(command->answer, answer, length + 1);
-    }
-    else
-    {
-        command->answer = command_state->answer;
-        command->answer_alloc = command_state->answer_alloc;
-    }
-    command->command_handler = command_state->command_handler;
-    command->type = command_state->type;
-    command->index = command_state->index;
-    command->args[0] = command_state->args[0];
-    command->args[1] = command_state->args[1];
-    log(DEBUG, "Writing %s to socket", command->answer + command->index);
 
-    size_t remaining_bytes_to_write = strlen(command->answer) - command->index;
-    size_t written_bytes = buffer_write_and_advance(buffer, command->answer + command->index, remaining_bytes_to_write);
-    if (written_bytes >= remaining_bytes_to_write)
-    {
-        free_command(command);
-        return NULL;
-    }
-    command->index += written_bytes;
-    return command;
-}
 
-command_t *handle_user_command(command_t *command_state, buffer_t buffer, pop3_client *client_state)
+command_t *handle_user_command(command_t *command_state, buffer_t buffer, client_info_t *client_state_)
 {
+    pop3_client* client_state = client_state_->pop3_client_info;
     char *answer = NULL;
     if (command_state->answer == NULL)
     {
@@ -331,30 +279,30 @@ command_t *handle_user_command(command_t *command_state, buffer_t buffer, pop3_c
 }
 
 // TODO: FIX MULTILINE AND BUFFER STUFFING
-command_t *handle_retr_write_command(command_t *command_state, buffer_t buffer, pop3_client *client_state)
+command_t *handle_retr_write_command(command_t *command_state, buffer_t buffer, client_info_t *client_state)
 {
     if (command_state->answer == NULL)
     { // STARTUP
         command_state->answer = malloc(MAX_LINE + 1);
-        command_state->retr_state.multiline_state = 0;
+        RETR_STATE(command_state)->multiline_state = 0;
         strncpy(command_state->answer, RETR_OK_MSG, RETR_OK_MSG_LENGTH);
     }
-    if (!command_state->retr_state.greeting_done) //Poner el mensaje inicial
+    if (!RETR_STATE(command_state)->greeting_done) //Poner el mensaje inicial
     {
         command_state->index += buffer_write_and_advance(buffer, command_state->answer + command_state->index, RETR_OK_MSG_LENGTH - command_state->index - 1);
         if (command_state->index >= RETR_OK_MSG_LENGTH-1)
         {
-            command_state->retr_state.greeting_done = true;
-            command_state->retr_state.finished_line = true;
+            RETR_STATE(command_state)->greeting_done = true;
+            RETR_STATE(command_state)->finished_line = true;
             command_state->index = 0;
         }
         return command_state;
     }
-    if(command_state->retr_state.emailfd == -1 && !command_state->retr_state.final_dot && command_state->index == 0){ //Termino de escribir entonces copio el ultimo \r\n . \r\n
+    if(RETR_STATE(command_state)->emailfd == -1 && !RETR_STATE(command_state)->final_dot && command_state->index == 0){ //Termino de escribir entonces copio el ultimo \r\n . \r\n
         strncpy(command_state->answer, FINAL_MESSAGE_RETR, FINAL_MESSAGE_RETR_LENGTH);
-        command_state->retr_state.final_dot = true;
+        RETR_STATE(command_state)->final_dot = true;
     }
-    if(command_state->retr_state.emailfd == -1 && command_state->retr_state.final_dot){ // Me aseguro que se escriba lo ultimo
+    if(RETR_STATE(command_state)->emailfd == -1 && RETR_STATE(command_state)->final_dot){ // Me aseguro que se escriba lo ultimo
         command_state->index += buffer_write_and_advance(buffer, command_state->answer + command_state->index, FINAL_MESSAGE_RETR_LENGTH - command_state->index - 1);
         if(command_state->index >= FINAL_MESSAGE_RETR_LENGTH-1){
             free_command(command_state);
@@ -362,15 +310,15 @@ command_t *handle_retr_write_command(command_t *command_state, buffer_t buffer, 
         }
     }
     // if emailfd == -1, it has finished reading
-    if (command_state->retr_state.emailfd != -1 && command_state->retr_state.finished_line)
+    if (RETR_STATE(command_state)->emailfd != -1 && RETR_STATE(command_state)->finished_line)
     {
         memset(command_state->answer, 0, MAX_LINE + 1);
-        ssize_t nbytes = read(command_state->retr_state.emailfd, command_state->answer, MAX_LINE - 2);
-        log(DEBUG, "Read %d bytes from emailfd", nbytes);
+        ssize_t nbytes = read(RETR_STATE(command_state)->emailfd, command_state->answer, MAX_LINE - 2);
+        log(DEBUG, "Read %ld bytes from emailfd", nbytes);
         if (nbytes == 0 || nbytes < (MAX_LINE - 2))
         {
-            close(command_state->retr_state.emailfd);
-            command_state->retr_state.emailfd = -1;
+            close(RETR_STATE(command_state)->emailfd);
+            RETR_STATE(command_state)->emailfd = -1;
         }
         else
         {
@@ -379,7 +327,7 @@ command_t *handle_retr_write_command(command_t *command_state, buffer_t buffer, 
                 command_state->answer[MAX_LINE - 2] = '\r';
                 command_state->answer[MAX_LINE - 1] = '\n';
             }
-            command_state->retr_state.finished_line = false;
+            RETR_STATE(command_state)->finished_line = false;
             command_state->index = 0;
         }
     }
@@ -392,24 +340,24 @@ command_t *handle_retr_write_command(command_t *command_state, buffer_t buffer, 
         char written_character = *(command_state->answer + command_state->index + i);
         if (written_character == '\r')
         {
-            command_state->retr_state.multiline_state = 1;
+            RETR_STATE(command_state)->multiline_state = 1;
         }
-        else if (command_state->retr_state.multiline_state == 1 && written_character == '\n')
+        else if (RETR_STATE(command_state)->multiline_state == 1 && written_character == '\n')
         {
-            command_state->retr_state.multiline_state = 2;
+            RETR_STATE(command_state)->multiline_state = 2;
         }
-        else if (command_state->retr_state.multiline_state == 2 && written_character == '.')
+        else if (RETR_STATE(command_state)->multiline_state == 2 && written_character == '.')
         {   
     
             has_written = buffer_write_and_advance(buffer, ".", 1);
             written_bytes += has_written;
             if(has_written){
-                command_state->retr_state.multiline_state = 0;
+                RETR_STATE(command_state)->multiline_state = 0;
             }
         }
         else
         {
-            command_state->retr_state.multiline_state = 0;
+            RETR_STATE(command_state)->multiline_state = 0;
         }
         has_written = buffer_write_and_advance(buffer, &written_character, 1);
         written_bytes += has_written;
@@ -417,7 +365,7 @@ command_t *handle_retr_write_command(command_t *command_state, buffer_t buffer, 
 
     if (written_bytes >= remaining_bytes_to_write)
     {
-        command_state->retr_state.finished_line = true;
+        RETR_STATE(command_state)->finished_line = true;
         command_state->index = 0;
     }
     else
@@ -427,11 +375,11 @@ command_t *handle_retr_write_command(command_t *command_state, buffer_t buffer, 
     return command_state;
 }
 
-command_t *handle_retr_command(command_t *command_state, buffer_t buffer, pop3_client *client_state)
+command_t *handle_retr_command(command_t *command_state, buffer_t buffer, client_info_t *client_state_)
 {
-    // blocking version
-    command_t *command = malloc(sizeof(command_t));
-    if (command_state->retr_state.emailfd == 0)
+    pop3_client* client_state = client_state_->pop3_client_info;
+    command_t *command = calloc(1,sizeof(command_t));
+    if (RETR_STATE(command_state) == NULL || RETR_STATE(command_state)->emailfd == 0)
     {
         if (command_state->args[0] == NULL)
         {
@@ -457,23 +405,20 @@ command_t *handle_retr_command(command_t *command_state, buffer_t buffer, pop3_c
             int flags = fcntl(emailfd, F_GETFL, 0);
             fcntl(emailfd, F_SETFL, flags | O_NONBLOCK);
             command->answer = NULL;
-            command->retr_state.emailfd = emailfd;
+            command->meta_data = malloc(sizeof(retr_state_t));
+            RETR_STATE(command)->emailfd = emailfd;
             command->index = 0;
-            command->retr_state.finished_line = false;
-            command->retr_state.greeting_done = false;
-            command->retr_state.multiline_state = 0;
-            command->retr_state.final_dot = false;
+            RETR_STATE(command)->finished_line = false;
+            RETR_STATE(command)->greeting_done = false;
+            RETR_STATE(command)->multiline_state = 0;
+            RETR_STATE(command)->final_dot = false;
         }
     }
     else
     {
         command->index = command_state->index;
         command->answer = command_state->answer;
-        command->retr_state.emailfd = command_state->retr_state.emailfd;
-        command->retr_state.finished_line = command_state->retr_state.finished_line;
-        command->retr_state.greeting_done = command_state->retr_state.greeting_done;
-        command->retr_state.multiline_state = command_state->retr_state.multiline_state;
-        command->retr_state.final_dot = command_state->retr_state.final_dot;
+        command->meta_data = command_state->meta_data;
     }
     command->args[0] = command_state->args[0];
     command->args[1] = command_state->args[1];
@@ -481,11 +426,12 @@ command_t *handle_retr_command(command_t *command_state, buffer_t buffer, pop3_c
     command->command_handler = command_state->command_handler;
     command->type = RETR;
 
-    return handle_retr_write_command(command, buffer, client_state);
+    return handle_retr_write_command(command, buffer, client_state_);
 }
 
-command_t *handle_pass_command(command_t *command_state, buffer_t buffer, pop3_client *client_state)
+command_t *handle_pass_command(command_t *command_state, buffer_t buffer, client_info_t *client_state_)
 {
+    pop3_client* client_state = client_state_->pop3_client_info;
     char *answer = NULL;
     if (command_state->answer == NULL)
     {
@@ -530,8 +476,9 @@ command_t *handle_pass_command(command_t *command_state, buffer_t buffer, pop3_c
     return handle_simple_command(command_state, buffer, answer);
 }
 
-command_t *handle_quit_command(command_t *command_state, buffer_t buffer, pop3_client *client_state)
+command_t *handle_quit_command(command_t *command_state, buffer_t buffer, client_info_t *client_state_)
 {
+    pop3_client* client_state = client_state_->pop3_client_info;
     client_state->closing = true;
     char *answer = QUIT_MSG;
     if (client_state->current_state & TRANSACTION)
@@ -541,7 +488,7 @@ command_t *handle_quit_command(command_t *command_state, buffer_t buffer, pop3_c
         bool error=false;
 
         int new_emails_count = client_state->emails_count;
-        for(int i = 0; i < client_state->emails_count && !error; i++){
+        for(size_t i = 0; i < client_state->emails_count && !error; i++){
             if(client_state->emails[i].deleted){
                 char *user_maildir = join_path(global_config.maildir, client_state->selected_user->username);
                 char *email_path = join_path(user_maildir, client_state->emails[i].filename);
@@ -569,8 +516,9 @@ command_t *handle_quit_command(command_t *command_state, buffer_t buffer, pop3_c
     return handle_simple_command(command_state, buffer, answer);
 }
 
-command_t *handle_stat_command(command_t *command_state, buffer_t buffer, pop3_client *client_state)
+command_t *handle_stat_command(command_t *command_state, buffer_t buffer, client_info_t *client_state_)
 {
+    pop3_client* client_state = client_state_->pop3_client_info;
     if (command_state->answer != NULL)
     {
         return handle_simple_command(command_state, buffer, NULL);
@@ -592,8 +540,9 @@ command_t *handle_stat_command(command_t *command_state, buffer_t buffer, pop3_c
     return handle_simple_command(command_state, buffer, NULL);
 }
 
-command_t *handle_list_command(command_t *command_state, buffer_t buffer, pop3_client *client_state)
+command_t *handle_list_command(command_t *command_state, buffer_t buffer, client_info_t *client_state_)
 {
+    pop3_client* client_state = client_state_->pop3_client_info;
     if (command_state->answer != NULL)
     {
         return handle_simple_command(command_state, buffer, NULL);
@@ -659,28 +608,29 @@ command_t *handle_list_command(command_t *command_state, buffer_t buffer, pop3_c
     }
 }
 
-command_t *handle_greeting_command(command_t *command_state, buffer_t buffer, pop3_client *client_state)
+command_t *handle_greeting_command(command_t *command_state, buffer_t buffer, client_info_t *client_state)
 {
     return handle_simple_command(command_state, buffer, GREETING_MSG);
 }
 
-command_t *handle_invalid_command(command_t *command_state, buffer_t buffer, pop3_client *client_state)
+command_t *handle_invalid_command(command_t *command_state, buffer_t buffer, client_info_t *client_state)
 {
     return handle_simple_command(command_state, buffer, INVALID_MSG);
 }
 
-command_t *handle_noop(command_t *command_state, buffer_t buffer, pop3_client *client_state)
+command_t *handle_noop(command_t *command_state, buffer_t buffer, client_info_t *client_state)
 {
     return handle_simple_command(command_state, buffer, NOOP_MSG);
 }
 
-command_t *handle_capa(command_t *command_state, buffer_t buffer, pop3_client *client_state)
+command_t *handle_capa(command_t *command_state, buffer_t buffer, client_info_t *client_state)
 {
     return handle_simple_command(command_state, buffer, CAPA_MSG);
 }
 
-command_t *handle_rset_command(command_t *command_state, buffer_t buffer, pop3_client *client_state)
+command_t *handle_rset_command(command_t *command_state, buffer_t buffer, client_info_t *client_state_)
 {
+    pop3_client* client_state = client_state_->pop3_client_info;
     for (size_t i = 0; i < client_state->emails_count; i += 1)
     {
         client_state->emails[i].deleted = false;
@@ -688,8 +638,9 @@ command_t *handle_rset_command(command_t *command_state, buffer_t buffer, pop3_c
     return handle_simple_command(command_state, buffer, RSET_MSG);
 }
 
-command_t *handle_dele_command(command_t *command_state, buffer_t buffer, pop3_client *client_state)
+command_t *handle_dele_command(command_t *command_state, buffer_t buffer, client_info_t *client_state_)
 {
+    pop3_client* client_state = client_state_->pop3_client_info;
     if (command_state->args[0] == NULL)
     {
         return handle_simple_command(command_state, buffer, INVALID_NUMBER_ARGUMENT);
@@ -699,8 +650,7 @@ command_t *handle_dele_command(command_t *command_state, buffer_t buffer, pop3_c
     {
         return handle_simple_command(command_state, buffer, INVALID_NUMBER_ARGUMENT);
     }
-    bool found = 0;
-    if (message_index > client_state->emails_count) {
+    if ((size_t)message_index > client_state->emails_count) {
         return handle_simple_command(command_state, buffer, NON_EXISTANT_EMAIL_MSG);
     }
     email_metadata_t* email = &(client_state->emails[message_index - 1]);
@@ -712,19 +662,6 @@ command_t *handle_dele_command(command_t *command_state, buffer_t buffer, pop3_c
         snprintf(response, MAX_LINE, DELETED_MSG, message_index);
     }
     return handle_simple_command(command_state, buffer, response);
-}
-
-void free_command(command_t *command)
-{
-    if (command == NULL)
-        return;
-    free(command->args[0]);
-    free(command->args[1]);
-    if (command->answer_alloc)
-    {
-        free(command->answer);
-    }
-    free(command);
 }
 
 void free_event(struct parser_event *event, bool free_arguments)
@@ -751,7 +688,7 @@ void free_pop3_client(pop3_client *client)
 }
 void free_client(int index)
 {
-    free_pop3_client(sockets[index].pop3_client_info);
+    free_pop3_client(sockets[index].client_info.pop3_client_info);
 }
 
 void log_emails(email_metadata_t *emails, size_t c)
