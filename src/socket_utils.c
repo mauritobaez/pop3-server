@@ -27,7 +27,7 @@
 #include "util.h"
 
 socket_handler sockets[MAX_SOCKETS] = {0};
-unsigned int current_socket_count = 2;
+unsigned int current_socket_count = PASSIVE_SOCKET_COUNT;
 
 
 int setup_passive_socket(char *socket_num)
@@ -163,10 +163,10 @@ socket_handler* get_socket_handler_at_index(unsigned int index) {
 }
 
 void free_client_socket(int socket) {
-    
+    log(DEBUG, "Freeing socket number %d\n", socket);
     for (int i = 0; i < MAX_SOCKETS; i += 1)
     {
-        if (sockets[i].fd == socket)
+        if (sockets[i].occupied && sockets[i].fd == socket)
         {
             sockets[i].free_client(i);
             sockets[i].occupied = false;

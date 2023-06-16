@@ -36,11 +36,13 @@ int main(int argc, char *argv[])
     sockets[0].occupied = true;
     sockets[0].try_write = false;
     sockets[0].try_read = true;
+    sockets[0].last_interaction = 0;
     sockets[1].fd = setup_passive_socket(PEEP_PORT);
     sockets[1].handler = (int (*)(void *, bool, bool)) & accept_peep_connection;
     sockets[1].occupied = true;
     sockets[1].try_write = false;
     sockets[1].try_read = true;
+    sockets[1].last_interaction = 0;
     
     while (!done)
     {
@@ -52,28 +54,38 @@ int main(int argc, char *argv[])
         struct pollfd pfds[total_poll_fds];
         unsigned socket_index[total_poll_fds];
         
-
+        time_t now = time(NULL);
         for (unsigned int j = 0, socket_num = 0; j < MAX_SOCKETS && socket_num < total_poll_fds; j += 1)
         {
             if (sockets[j].occupied)
             {
-                socket_index[socket_num] = j;
-                pfds[socket_num].fd = sockets[j].fd;
-                pfds[socket_num].events = 0;
-                if (sockets[j].try_read) {
-                    pfds[socket_num].events |= POLLIN;
+                if(global_config.timeout > 0 && sockets[j].last_interaction != 0 && sockets[j].last_interaction + (time_t) global_config.timeout < now) {
+                    log(INFO, "Closing connection of client %d due to exceeded timeout\n", j);
+                    remove_connection_metric();
+                    free_client_socket(sockets[j].fd);
                 }
-                if (sockets[j].try_write) {
-                    pfds[socket_num].events |= POLLOUT;
+                else {
+                    socket_index[socket_num] = j;
+                    pfds[socket_num].fd = sockets[j].fd;
+                    pfds[socket_num].events = 0;
+                    if (sockets[j].try_read) {
+                        pfds[socket_num].events |= POLLIN;
+                    }
+                    if (sockets[j].try_write) {
+                        pfds[socket_num].events |= POLLOUT;
+                    }
+                    socket_num += 1;
                 }
-                socket_num += 1;
+                
             }
         }
 
-        if (poll(pfds, total_poll_fds, -1) < 0)
+        if (poll(pfds, total_poll_fds, global_config.timeout == 0? -1 : (long) global_config.timeout * 1000) < 0)
         {
             log(ERROR, "Poll failed() %s", strerror(errno));
         }
+
+        now = time(NULL);
 
         for (unsigned int i = 0; i < total_poll_fds; i += 1)
         {
@@ -103,6 +115,9 @@ int main(int argc, char *argv[])
                 free_client_socket(pfds[i].fd);
             } else if (pfds[i].revents & POLLIN || pfds[i].revents & POLLOUT)
             {
+                if(sockets[socket_index[i]].last_interaction != 0) {
+                    sockets[socket_index[i]].last_interaction = now;
+                }
                 if (sockets[socket_index[i]].handler(&socket_index[i], pfds[i].revents & POLLIN, pfds[i].revents & POLLOUT) == -1) {
                     remove_connection_metric();
                     free_client_socket(pfds[i].fd);

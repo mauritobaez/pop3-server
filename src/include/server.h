@@ -7,8 +7,8 @@
 #define MIN_TIMEOUT_VALUE 0
 #define MAX_TIMEOUT_VALUE 86400
 
-#define MIN_CONNECTION_LIMIT 3
-#define MAX_CONNECTION_LIMIT 1000
+#define MIN_CONNECTION_LIMIT 1
+#define MAX_CONNECTION_LIMIT 998 //1000 - 2
 
 typedef struct server_metrics {
     size_t total_pop3_connections;

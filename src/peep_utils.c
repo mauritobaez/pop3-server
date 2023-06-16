@@ -179,7 +179,7 @@ int accept_peep_connection(void *index, bool can_read, bool can_write) {
         struct sockaddr_storage client_addr;
         socklen_t client_addr_len = sizeof(client_addr);
 
-        if (current_socket_count >= global_config.max_connections)
+        if ((current_socket_count - PASSIVE_SOCKET_COUNT) >= global_config.max_connections)
         {
             return -1;
         }
@@ -207,6 +207,7 @@ int accept_peep_connection(void *index, bool can_read, bool can_write) {
                 sockets[i].client_info.peep_client_info->parser_state = set_up_parser();
                 sockets[i].client_info.peep_client_info->closing = false;
                 sockets[i].writing_buffer = buffer_init(PEEP_WRITING_BUFFER_SIZE);
+                sockets[i].last_interaction = 0;
                 current_socket_count += 1;
                 return 0;
             }

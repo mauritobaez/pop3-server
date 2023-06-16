@@ -5,6 +5,7 @@
 
 #define MAX_SOCKETS 1000
 #define MAXPENDING 5
+#define PASSIVE_SOCKET_COUNT 2
 
 extern socket_handler sockets[];
 extern unsigned int current_socket_count;

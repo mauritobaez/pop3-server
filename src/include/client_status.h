@@ -2,6 +2,7 @@
 #define CLIENT_STATUS_H
 
 #include <stdbool.h>
+#include <time.h>
 
 #include "buffer.h"
 #include "parser.h"
@@ -19,6 +20,7 @@ typedef struct socket_handler
     bool occupied;
     bool try_read;
     bool try_write;
+    time_t last_interaction;
     client_info_t client_info;
     buffer_t writing_buffer;
     void (*free_client)(int socket_index);
