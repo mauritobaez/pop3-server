@@ -246,6 +246,7 @@ command_t *handle_retr_write_command(command_t *command_state, buffer_t buffer, 
     { // STARTUP
         command_state->answer = malloc(MAX_LINE + 1);
         RETR_STATE(command_state)->multiline_state = 0;
+        RETR_STATE(command_state)->final_dot = false;
         strncpy(command_state->answer, RETR_OK_MSG, RETR_OK_MSG_LENGTH);
     }
     if (!RETR_STATE(command_state)->greeting_done) //Poner el mensaje inicial
@@ -260,15 +261,8 @@ command_t *handle_retr_write_command(command_t *command_state, buffer_t buffer, 
         return command_state;
     }
     if(RETR_STATE(command_state)->emailfd == -1 && !RETR_STATE(command_state)->final_dot && command_state->index == 0){ //Termino de escribir entonces copio el ultimo \r\n . \r\n
-        strncpy(command_state->answer, FINAL_MESSAGE_RETR, FINAL_MESSAGE_RETR_LENGTH);
+        strncpy(command_state->answer, (RETR_STATE(command_state)->multiline_state == 2) ? FINAL_MESSAGE_RETR : FINAL_MESSAGE_RETR_PADDED, MAX_LINE);
         RETR_STATE(command_state)->final_dot = true;
-    }
-    if(RETR_STATE(command_state)->emailfd == -1 && RETR_STATE(command_state)->final_dot){ // Me aseguro que se escriba lo ultimo
-        command_state->index += buffer_write_and_advance(buffer, command_state->answer + command_state->index, FINAL_MESSAGE_RETR_LENGTH - command_state->index - 1);
-        if(command_state->index >= FINAL_MESSAGE_RETR_LENGTH-1){
-            free_command(command_state);
-            return NULL;
-        }
     }
     // if emailfd == -1, it has finished reading
     if (RETR_STATE(command_state)->emailfd != -1 && RETR_STATE(command_state)->finished_line)
@@ -294,26 +288,28 @@ command_t *handle_retr_write_command(command_t *command_state, buffer_t buffer, 
     for (size_t i = 0; i < remaining_bytes_to_write && has_written; i += 1)
     {
         char written_character = *(command_state->answer + command_state->index + i);
-        if (written_character == '\r')
-        {
-            RETR_STATE(command_state)->multiline_state = 1;
-        }
-        else if (RETR_STATE(command_state)->multiline_state == 1 && written_character == '\n')
-        {
-            RETR_STATE(command_state)->multiline_state = 2;
-        }
-        else if (RETR_STATE(command_state)->multiline_state == 2 && written_character == '.')
-        {   
-    
-            has_written = buffer_write_and_advance(buffer, ".", 1);
-            written_bytes += has_written;
-            if(has_written){
+        if (!(RETR_STATE(command_state)->final_dot)) {
+            if (written_character == '\r')
+            {
+                RETR_STATE(command_state)->multiline_state = 1;
+            }
+            else if (RETR_STATE(command_state)->multiline_state == 1 && written_character == '\n')
+            {
+                RETR_STATE(command_state)->multiline_state = 2;
+            }
+            else if (RETR_STATE(command_state)->multiline_state == 2 && written_character == '.')
+            {   
+        
+                has_written = buffer_write_and_advance(buffer, ".", 1);
+                written_bytes += has_written;
+                if(has_written){
+                    RETR_STATE(command_state)->multiline_state = 0;
+                }
+            }
+            else
+            {
                 RETR_STATE(command_state)->multiline_state = 0;
             }
-        }
-        else
-        {
-            RETR_STATE(command_state)->multiline_state = 0;
         }
         has_written = buffer_write_and_advance(buffer, &written_character, 1);
         written_bytes += has_written;
@@ -323,6 +319,11 @@ command_t *handle_retr_write_command(command_t *command_state, buffer_t buffer, 
     {
         RETR_STATE(command_state)->finished_line = true;
         command_state->index = 0;
+        // Me aseguro que se escriba lo ultimo
+        if(RETR_STATE(command_state)->emailfd == -1 && RETR_STATE(command_state)->final_dot){ 
+            free_command(command_state);
+            return NULL;
+        }
     }
     else
     {
