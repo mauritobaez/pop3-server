@@ -66,9 +66,8 @@ email_metadata_t* get_file_info(const char* directory, size_t *email_count) {
 }
 
 int open_email_file(pop3_client* client, char *filename) {
-    char *mailbox = join_path(global_config.maildir, client->selected_user->username);
+    char *mailbox = client->user_maildir;
     char *mail_filename = join_path(mailbox, filename);
-    free(mailbox);
     int fd = open(mail_filename, O_RDONLY);
     free(mail_filename);
     return fd;
@@ -97,4 +96,13 @@ char *join_path(const char *dir1, const char *dir2) {
     total[dir1_length] = PATH_SEPARATOR;
     strcpy(total + dir1_length + 1, dir2);
     return total;
+}
+
+bool path_is_directory(char* path) {
+    DIR *dir = opendir(path);
+    if (dir != NULL) {
+        closedir(dir);
+        return 1;
+    }
+    return 0;
 }

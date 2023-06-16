@@ -146,7 +146,6 @@ close_client:
         remove_loggedin_user();
         sockets[i].client_info.pop3_client_info->selected_user->locked = false;
     }
-    // MANAGE STATE
     free_client(i);
     return -1;
 }
@@ -161,7 +160,7 @@ int accept_pop3_connection(void *index, bool can_read, bool can_write)
         struct sockaddr_storage client_addr;
         socklen_t client_addr_len = sizeof(client_addr);
 
-        if (current_socket_count == MAX_SOCKETS)
+        if (current_socket_count >= global_config.max_connections)
         {
             return -1;
         }
@@ -226,7 +225,7 @@ command_t *handle_user_command(command_t *command_state, buffer_t buffer, client
             while (iterator_has_next(list))
             {
                 user_t *user = iterator_next(list);
-                if (strcmp(user->username, username) == 0)
+                if (strcmp(user->username, username) == 0 && !user->removed)
                 {
                     client_state->selected_user = user;
                     client_state->current_state = AUTH_POST_USER;
@@ -406,9 +405,9 @@ command_t *handle_pass_command(command_t *command_state, buffer_t buffer, client
                     // Y cuanod se haga QUIT liberar el lock
                     add_loggedin_user();
                     char *user_maildir = join_path(global_config.maildir, client_state->selected_user->username);
+                    client_state->user_maildir = user_maildir;
                     client_state->emails = get_file_info(user_maildir, &(client_state->emails_count));
                     log(INFO, "retrieved emails: %ld\n", client_state->emails_count);
-                    free(user_maildir);
                 }
                 else
                 {
@@ -447,7 +446,7 @@ command_t *handle_quit_command(command_t *command_state, buffer_t buffer, client
         int new_emails_count = client_state->emails_count;
         for(size_t i = 0; i < client_state->emails_count && !error; i++){
             if(client_state->emails[i].deleted){
-                char *user_maildir = join_path(global_config.maildir, client_state->selected_user->username);
+                char *user_maildir = client_state->user_maildir;
                 char *email_path = join_path(user_maildir, client_state->emails[i].filename);
                 if( remove(email_path) == -1){
                     log(ERROR, "Error deleting email %s\n", email_path);
@@ -459,7 +458,6 @@ command_t *handle_quit_command(command_t *command_state, buffer_t buffer, client
                     add_email_removed();
                 }
                 free(email_path);
-                free(user_maildir);
             }
         }
         // Aca va la logica de eliminar emails cuando se termina la sesion
@@ -629,11 +627,12 @@ void free_pop3_client(pop3_client *client)
 {
     parser_destroy(client->parser_state);
     for (size_t i = 0; i < client->emails_count; i += 1)
-    {
+    { //Si no inicio sesion emails_count = 0 entonces no entra
         free(client->emails[i].filename);
     }
     free(client->emails);
-    if(client->pending_command != NULL) free(client->pending_command);
+    free(client->pending_command);
+    free(client->user_maildir);
     free(client);
 }
 void free_client(int index)

@@ -4,6 +4,11 @@
 #include <stdlib.h>
 #include "queue.h"
 
+#define MIN_TIMEOUT_VALUE 0
+#define MAX_TIMEOUT_VALUE 86400
+
+#define MIN_CONNECTION_LIMIT 3
+#define MAX_CONNECTION_LIMIT 1000
 
 typedef struct server_metrics {
     size_t total_pop3_connections;
@@ -21,11 +26,12 @@ typedef struct user_t {
     char *username;
     char *password;
     int locked;
+    bool removed;
 } user_t;
 
 typedef struct server_config {
     size_t max_connections;
-    size_t polling_timeout;
+    size_t timeout;
     queue_t users;
     user_t peep_admin;
     char *maildir;

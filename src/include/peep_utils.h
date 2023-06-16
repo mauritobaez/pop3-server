@@ -22,17 +22,17 @@
 #define C_SET_MAX_CONNECTIONS           5     //c=
 #define C_SHOW_MAX_CONNECTIONS          6     //c?
 #define C_SET_MAILDIR                   7     //m=
-#define C_SHOW_MAILDIR                  8     //m?
-#define C_SET_TIMEOUT                   9     //t=
+#define C_SHOW_MAILDIR                  8     //m?  probar
+#define C_SET_TIMEOUT                   9     //t=  probar
 #define C_SHOW_TIMEOUT                  10    //t?
-#define C_SHOW_RETRIEVED_BYTES          11    //rb?
-#define C_SHOW_RETRIEVED_EMAILS_COUNT   12    //re?
+#define C_SHOW_RETRIEVED_BYTES          11    //rb? MAL
+#define C_SHOW_RETRIEVED_EMAILS_COUNT   12    //re? ROTO
 #define C_SHOW_REMOVED_EMAILS_COUNT     13    //xe?
 #define C_SHOW_CURR_CONNECTION_COUNT    14    //cc?
 #define C_SHOW_CURR_LOGGED_IN           15    //cu?
 #define C_SHOW_HIST_CONNECTION_COUNT    16    //hc?
 #define C_SHOW_HIST_LOGGED_IN_COUNT     17    //hu?
-#define C_HELP                          18    //h?
+#define C_HELP                          18    //h? probar
 #define C_UNKNOWN                       19
 
 
@@ -40,6 +40,7 @@ typedef struct peep_client {
     state_t state;
     struct parser* parser_state;
     command_t* pending_command;
+    bool closing;
 } peep_client;
 
 int handle_peep_client(void *index, bool can_read, bool can_write);

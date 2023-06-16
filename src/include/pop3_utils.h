@@ -59,6 +59,7 @@ typedef struct pop3_client {
     struct parser* parser_state;
     user_t* selected_user; // Ptero a struct user en la lista, no hacer free
     email_metadata_t* emails;
+    char* user_maildir;
     size_t emails_count;
     bool closing;
 } pop3_client;

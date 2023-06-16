@@ -3,6 +3,7 @@
 #include <errno.h>
 
 #include "server.h"
+#include "directories.h"
 #include "logger.h"
 
 /*
@@ -47,13 +48,17 @@ int handle_user(int argc, char *arg[], server_config* config) {
     user->password = malloc(strlen(token) + 1);
     strcpy(user->password, token);
     user->locked = false;
+    user->removed = false;
     enqueue(config->users, user);
     return 1;
 }
 
 int handle_mail(int argc, char *arg[], server_config* config) {
     if (argc == 0) {
-        log(FATAL, "No matching property for argument: %s\n", "-u");
+        log(FATAL, "No matching property for argument: %s\n", "-m");
+    }
+    if (!path_is_directory(arg[0])) {
+        log(FATAL, "Not a valid path: %s\n", "-m");
     }
     size_t maildir_length = strlen(arg[0]);
     config->maildir = malloc(maildir_length + 1);
@@ -64,7 +69,7 @@ int handle_mail(int argc, char *arg[], server_config* config) {
 
 int handle_peep_admin(int argc, char *arg[], server_config* config) {
     if (argc == 0) {
-        log(FATAL, "No matching property for argument: %s\n", "-u");
+        log(FATAL, "No matching property for argument: %s\n", "-a");
     }
     const char *delimiter = ":";
     char *token = strtok(arg[0], delimiter);
@@ -81,6 +86,8 @@ int handle_peep_admin(int argc, char *arg[], server_config* config) {
     }
     user.password = malloc(strlen(token) + 1);
     strcpy(user.password, token);
+    free(config->peep_admin.username);
+    free(config->peep_admin.password);
     config->peep_admin.username = user.username;
     config->peep_admin.password = user.password;
     return 1;
@@ -96,13 +103,22 @@ server_config create_defaults(server_config config) {
     return config;
 }
 
+// De no utilizar --peep-admin, las credenciales serán root:root
 server_config get_server_config(int argc, char *argv[]) {
+    char* default_peep_admin = "root";
+    unsigned int length = strlen(default_peep_admin) + 1;
     server_config config = {
-        .max_connections = 0,
-        .polling_timeout = 0,
+        .max_connections = MAX_CONNECTION_LIMIT,
+        .timeout = 0,
         .users = create_queue(),
         .maildir = NULL,
+        .peep_admin = (user_t) {
+            .username = malloc(length),
+            .password = malloc(length)
+        }
     };
+    strncpy(config.peep_admin.username, default_peep_admin, length);
+    strncpy(config.peep_admin.password, default_peep_admin, length);
     // ignoro nombre de programa
     argv = argv + 1;
     argc -= 1;
@@ -125,7 +141,7 @@ server_config get_server_config(int argc, char *argv[]) {
 }
 
 void print_config(server_config config) {
-    log(INFO, "MAX CONNECTIONS %ld, TIMEOUT %ld\n", config.max_connections, config.polling_timeout);
+    log(INFO, "MAX CONNECTIONS %ld, TIMEOUT %ld\n", config.max_connections, config.timeout);
     iterator_to_begin(config.users);
     
     while(iterator_has_next(config.users)){
