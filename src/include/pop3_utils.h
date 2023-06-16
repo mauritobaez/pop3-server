@@ -67,7 +67,7 @@ typedef struct pop3_client {
 // devuelve -1 si hubo un error, loguea el error solo
 int handle_pop3_client(void *index, bool can_read, bool can_write);
 int accept_pop3_connection(void *index, bool can_read, bool can_write);
-void free_client(int index);
+void free_client_pop3(int index);
 
 email_metadata_t* get_email_at_index(pop3_client* state, size_t index);
 

@@ -22,6 +22,8 @@
 #include <netinet/tcp.h>
 
 #include "logger.h"
+#include "pop3_utils.h"
+#include "peep_utils.h"
 #include "util.h"
 
 socket_handler sockets[MAX_SOCKETS] = {0};
@@ -166,6 +168,7 @@ void free_client_socket(int socket) {
     {
         if (sockets[i].fd == socket)
         {
+            sockets[i].free_client(i);
             sockets[i].occupied = false;
             //El free de pop3client se hace en el quit
             if(sockets[i].writing_buffer != NULL)

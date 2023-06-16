@@ -166,7 +166,7 @@ int handle_peep_client(void *index, bool can_read, bool can_write) {
     return 0;
 
 close_peep_client:
-    free_peep_client(i);
+    //TODO:dejamos esto o lo sacamos
     return -1;
 }
 
@@ -200,6 +200,7 @@ int accept_peep_connection(void *index, bool can_read, bool can_write) {
                 sockets[i].handler = (int (*)(void *, bool, bool)) & handle_peep_client;
                 sockets[i].try_read = true;
                 sockets[i].try_write = false;
+                sockets[i].free_client = &free_peep_client;
                 sockets[i].client_info.peep_client_info = malloc(sizeof(peep_client));
                 sockets[i].client_info.peep_client_info->state = AUTHENTICATION;
                 sockets[i].client_info.peep_client_info->pending_command = NULL;
@@ -218,7 +219,7 @@ void free_peep_client(int index)
 {
     peep_client* client = sockets[index].client_info.peep_client_info;
     parser_destroy(client->parser_state);
-    if(client->pending_command != NULL) free(client->pending_command);
+    free_command(client->pending_command);
     free(client);
 }
 

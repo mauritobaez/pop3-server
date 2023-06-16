@@ -21,6 +21,7 @@ typedef struct socket_handler
     bool try_write;
     client_info_t client_info;
     buffer_t writing_buffer;
+    void (*free_client)(int socket_index);
 } socket_handler;
 
 #endif

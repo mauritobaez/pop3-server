@@ -141,12 +141,7 @@ int handle_pop3_client(void *index, bool can_read, bool can_write)
     return 0;
 
 close_client:
-    if (sockets[i].client_info.pop3_client_info->current_state & TRANSACTION)
-    {
-        remove_loggedin_user();
-        sockets[i].client_info.pop3_client_info->selected_user->locked = false;
-    }
-    free_client(i);
+//TODO: lo dejamos?
     return -1;
 }
 
@@ -180,6 +175,7 @@ int accept_pop3_connection(void *index, bool can_read, bool can_write)
                 sockets[i].occupied = true;
                 sockets[i].handler = (int (*)(void *, bool, bool)) & handle_pop3_client;
                 sockets[i].try_read = true;
+                sockets[i].free_client = &free_client_pop3;
                 sockets[i].client_info.pop3_client_info = calloc(1, sizeof(pop3_client));
                 sockets[i].client_info.pop3_client_info->current_state = AUTH_PRE_USER;
                 sockets[i].client_info.pop3_client_info->parser_state = set_up_parser();
@@ -626,17 +622,22 @@ command_t *handle_dele_command(command_t *command_state, buffer_t buffer, client
 
 void free_pop3_client(pop3_client *client)
 {
+    if (client->current_state & TRANSACTION)
+    {
+        remove_loggedin_user();
+        client->selected_user->locked = false;
+    }
     parser_destroy(client->parser_state);
     for (size_t i = 0; i < client->emails_count; i += 1)
     { //Si no inicio sesion emails_count = 0 entonces no entra
         free(client->emails[i].filename);
     }
     free(client->emails);
-    free(client->pending_command);
+    free_command(client->pending_command);
     free(client->user_maildir);
     free(client);
 }
-void free_client(int index)
+void free_client_pop3(int index)
 {
     free_pop3_client(sockets[index].client_info.pop3_client_info);
 }
