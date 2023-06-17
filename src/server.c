@@ -165,7 +165,6 @@ void start_metrics() {
     metrics.emails_read = 0;
     metrics.emails_removed = 0;
     metrics.successful_quit = 0;
-    metrics.max_concurrent_pop3_connections = 0;
     metrics.sent_bytes = 0;
     metrics.total_pop3_connections = 0;
     metrics.current_loggedin_users = 0;
@@ -175,9 +174,6 @@ void start_metrics() {
 void add_connection_metric() {
     metrics.total_pop3_connections += 1;
     metrics.current_concurrent_pop3_connections += 1;
-    if (metrics.current_concurrent_pop3_connections > metrics.max_concurrent_pop3_connections) {
-        metrics.max_concurrent_pop3_connections = metrics.current_concurrent_pop3_connections;
-    }
 }
 
 void remove_connection_metric() {

@@ -155,15 +155,11 @@ int accept_pop3_connection(void *index, bool can_read, bool can_write)
         struct sockaddr_storage client_addr;
         socklen_t client_addr_len = sizeof(client_addr);
 
-        if ((current_socket_count - PASSIVE_SOCKET_COUNT) >= global_config.max_connections)
-        {
-            return -1;
-        }
         int client_socket = accept(socket_state->fd, (struct sockaddr *)&client_addr, &client_addr_len);
 
         if (client_socket < 0)
         {
-            LOG_AND_RETURN(ERROR, "Error accepting pop3 connection", -1);
+            LOG_AND_RETURN(ERROR, "Error accepting pop3 connection", 0);
         }
 
         for (int i = 0; i < MAX_SOCKETS; i += 1)
@@ -183,6 +179,7 @@ int accept_pop3_connection(void *index, bool can_read, bool can_write)
                 sockets[i].client_info.pop3_client_info->selected_user = NULL;
                 sockets[i].writing_buffer = buffer_init(POP3_WRITING_BUFFER_SIZE);
                 sockets[i].last_interaction = time(NULL);
+                sockets[i].passive = false;
                 current_socket_count += 1;
                 add_connection_metric();
                 // GREETING
@@ -199,11 +196,11 @@ int accept_pop3_connection(void *index, bool can_read, bool can_write)
 
                 sockets[i].client_info.pop3_client_info->pending_command = handle_greeting_command(&greeting_state, sockets[i].writing_buffer, &(sockets[i].client_info));
                 sockets[i].try_write = true;
-                return 0;
+                return 1;
             }
         }
     }
-    return -1;
+    return 0;
 }
 
 
@@ -366,6 +363,7 @@ command_t *handle_retr_command(command_t *command_state, buffer_t buffer, client
             RETR_STATE(command)->greeting_done = false;
             RETR_STATE(command)->multiline_state = 0;
             RETR_STATE(command)->final_dot = false;
+            add_email_read();
         }
     }
     else
@@ -379,7 +377,6 @@ command_t *handle_retr_command(command_t *command_state, buffer_t buffer, client
     command->answer_alloc = true;
     command->command_handler = command_state->command_handler;
     command->type = RETR;
-    add_email_read();
     return handle_retr_write_command(command, buffer, client_state);
 }
 

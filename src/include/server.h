@@ -12,7 +12,6 @@
 
 typedef struct server_metrics {
     size_t total_pop3_connections;
-    size_t max_concurrent_pop3_connections;
     size_t current_concurrent_pop3_connections;
     size_t sent_bytes;
     size_t emails_read;

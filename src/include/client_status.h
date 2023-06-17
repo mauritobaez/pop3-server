@@ -24,6 +24,7 @@ typedef struct socket_handler
     client_info_t client_info;
     buffer_t writing_buffer;
     void (*free_client)(int socket_index);
+    bool passive;
 } socket_handler;
 
 #endif

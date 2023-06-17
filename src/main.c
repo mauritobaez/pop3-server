@@ -37,12 +37,14 @@ int main(int argc, char *argv[])
     sockets[0].try_write = false;
     sockets[0].try_read = true;
     sockets[0].last_interaction = 0;
+    sockets[0].passive = true;
     sockets[1].fd = setup_passive_socket(PEEP_PORT);
     sockets[1].handler = (int (*)(void *, bool, bool)) & accept_peep_connection;
     sockets[1].occupied = true;
     sockets[1].try_write = false;
     sockets[1].try_read = true;
     sockets[1].last_interaction = 0;
+    sockets[1].passive = true;
     
     while (!done)
     {
@@ -68,11 +70,13 @@ int main(int argc, char *argv[])
                     socket_index[socket_num] = j;
                     pfds[socket_num].fd = sockets[j].fd;
                     pfds[socket_num].events = 0;
-                    if (sockets[j].try_read) {
-                        pfds[socket_num].events |= POLLIN;
-                    }
-                    if (sockets[j].try_write) {
-                        pfds[socket_num].events |= POLLOUT;
+                    if(!(sockets[j].passive && (current_socket_count - PASSIVE_SOCKET_COUNT) >= global_config.max_connections)) {
+                        if (sockets[j].try_read) {
+                            pfds[socket_num].events |= POLLIN;
+                        }
+                        if (sockets[j].try_write) {
+                            pfds[socket_num].events |= POLLOUT;
+                        }
                     }
                     socket_num += 1;
                 }
@@ -102,7 +106,7 @@ int main(int argc, char *argv[])
                                         0,          0,          0,          0,
                                         "POLLNVAL"};
 
-            log(DEBUG, "Socket %d - revents = %s", i, debug_revents[pfds[i].revents]);
+            log(DEBUG, "%s Socket %d (of fd %d) - revents = %s", sockets[socket_index[i]].passive? "Passive": "Active", i, pfds[i].fd, debug_revents[pfds[i].revents]);
             
             if (pfds[i].revents & POLLERR || pfds[i].revents & POLLNVAL)
             {
