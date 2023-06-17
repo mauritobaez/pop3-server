@@ -36,7 +36,7 @@ char *levelDescription(LOG_LEVEL level);
 		if (level >= current_level)                                                      \
 		{                                                                                \
 			fprintf(stderr, "%s: %s:%d, ", levelDescription(level), __FILE__, __LINE__); \
-			fprintf(stderr, fmt, ##__VA_ARGS__);                                         \
+			fprintf(stderr, fmt, __VA_ARGS__);                                         	 \
 			fprintf(stderr, "\n");                                                       \
 		}                                                                                \
 		if (level == FATAL)                                                              \

@@ -456,7 +456,7 @@ command_t *handle_quit_command(command_t *command_state, buffer_t buffer, client
             }
         }
         // Aca va la logica de eliminar emails cuando se termina la sesion
-        int answer_length = QUIT_AUTHENTICATED_MSG_LENGTH + MAX_DIGITS_INT + (error)? QUIT_UNAUTHENTICATED_MSG_ERROR_LENGTH:0;
+        int answer_length = QUIT_AUTHENTICATED_MSG_LENGTH + MAX_DIGITS_INT + ((error)? QUIT_UNAUTHENTICATED_MSG_ERROR_LENGTH:0);
         command_state->answer = malloc(answer_length * sizeof(char));
         command_state->answer_alloc = true;
         int written_chars = snprintf(command_state->answer,answer_length, QUIT_AUTHENTICATED_MSG ,new_emails_count);

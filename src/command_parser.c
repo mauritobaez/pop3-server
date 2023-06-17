@@ -145,3 +145,4 @@ void free_event(struct parser_event *event, bool free_arguments)
     free(event->args[0]);
     free(event);
 }
+

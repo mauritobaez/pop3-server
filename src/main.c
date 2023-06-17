@@ -65,6 +65,7 @@ int main(int argc, char *argv[])
                     log(INFO, "Closing connection of client %d due to exceeded timeout\n", j);
                     remove_connection_metric();
                     free_client_socket(sockets[j].fd);
+                    total_poll_fds--;
                 }
                 else {
                     socket_index[socket_num] = j;

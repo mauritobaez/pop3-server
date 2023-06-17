@@ -98,3 +98,4 @@ struct parser_event * get_last_event(struct parser * p);
 void free_event_list(struct parser * p);
 
 #endif
+

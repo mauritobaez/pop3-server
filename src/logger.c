@@ -14,3 +14,4 @@ char * levelDescription(LOG_LEVEL level) {
         return "";
     return description[level];
 }
+

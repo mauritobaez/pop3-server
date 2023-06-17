@@ -471,3 +471,4 @@ command_t *handle_help_command(command_t *command_state, buffer_t buffer, client
 {
     return handle_simple_command(command_state, buffer, PEEP_HELP);    
 }
+

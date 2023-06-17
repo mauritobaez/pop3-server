@@ -155,3 +155,4 @@ int sockAddrsEqual(const struct sockaddr *addr1, const struct sockaddr *addr2) {
 	} else
 		return 0;
 }
+
