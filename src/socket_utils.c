@@ -84,15 +84,12 @@ int send_from_socket_buffer(int socket_index) {
 
     socket_handler *socket = &sockets[socket_index];
     size_t bytes_to_read = buffer_available_chars_count(socket->writing_buffer);
-    char *message = malloc(bytes_to_read + 1);
-    if (message == NULL)
-        LOG_AND_RETURN(ERROR, "Error writing to peep client", -1);
+    char message[bytes_to_read + 1];
     message[bytes_to_read] = '\0';
 
     size_t read_bytes = buffer_read(socket->writing_buffer, message, bytes_to_read);
     ssize_t sent_bytes = send(socket->fd, message, read_bytes, MSG_NOSIGNAL);
 
-    free(message);
     if (sent_bytes < 0)
     {
         char error_log[ERROR_LOG_LENGTH] = {0};

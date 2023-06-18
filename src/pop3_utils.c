@@ -261,8 +261,8 @@ command_t *handle_retr_write_command(command_t *command_state, buffer_t buffer, 
     // if emailfd == -1, it has finished reading
     if (RETR_STATE(command_state)->emailfd != -1 && RETR_STATE(command_state)->finished_line)
     {
-        memset(command_state->answer, 0, MAX_LINE + 1);
         ssize_t nbytes = read(RETR_STATE(command_state)->emailfd, command_state->answer, MAX_LINE);
+        command_state->answer[nbytes] = '\0';
         log(DEBUG, "Read %ld bytes from emailfd", nbytes);
         if (nbytes == 0 || nbytes < MAX_LINE)
         {
