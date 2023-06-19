@@ -635,8 +635,10 @@ void free_pop3_client(pop3_client *client)
     free(client->user_maildir);
     free(client);
 }
+
 void free_client_pop3(int index)
 {
+    remove_connection_metric();
     free_pop3_client(sockets[index].client_info.pop3_client_info);
 }
 

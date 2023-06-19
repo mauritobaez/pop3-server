@@ -63,7 +63,6 @@ int main(int argc, char *argv[])
             {
                 if(global_config.timeout > 0 && sockets[j].last_interaction != 0 && sockets[j].last_interaction + (time_t) global_config.timeout < now) {
                     log(INFO, "Closing connection of client %d due to exceeded timeout\n", j);
-                    remove_connection_metric();
                     free_client_socket(sockets[j].fd);
                     total_poll_fds--;
                 }
@@ -116,7 +115,6 @@ int main(int argc, char *argv[])
             if (pfds[i].revents & POLLHUP)
             {
                 log(ERROR, "user hangup %s\n", strerror(errno));
-                remove_connection_metric();
                 free_client_socket(pfds[i].fd);
             } else if (pfds[i].revents & POLLIN || pfds[i].revents & POLLOUT)
             {
@@ -124,7 +122,6 @@ int main(int argc, char *argv[])
                     sockets[socket_index[i]].last_interaction = now;
                 }
                 if (sockets[socket_index[i]].handler(&socket_index[i], pfds[i].revents & POLLIN, pfds[i].revents & POLLOUT) == -1) {
-                    remove_connection_metric();
                     free_client_socket(pfds[i].fd);
                 }
             }
