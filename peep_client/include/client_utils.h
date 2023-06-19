@@ -3,7 +3,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-
+#define MAX_COMMAND_LENGTH 268
+#define STD_BUFFER_SIZE 512
 #define FATAL_ERROR(fmt, ...)                                                            \
 	{                                                                                    \
         fprintf(stderr, fmt, __VA_ARGS__);                                         	     \
@@ -25,6 +26,6 @@ typedef struct argument_t {
 
 client_config get_client_config (int argc, char* argv[]);
 int setup_tcp_client_socket(const char *host,const char *port);
-
+int handle_server_response(FILE* server_fd, bool last_command_was_multiline);
 
 #endif

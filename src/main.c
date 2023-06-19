@@ -46,6 +46,16 @@ int main(int argc, char *argv[])
     sockets[1].last_interaction = 0;
     sockets[1].passive = true;
     
+    char* debug_revents[] = {   "NONE",     "POLLIN",   "POLLPRI",  0, 
+                                        "POLLOUT",  0,          0,          0,
+                                        "POLLERR",  0,          0,          0,
+                                        0,          0,          0,          0,
+                                        "POLLHUP",  0,          0,          0,
+                                        0,          0,          0,          0,
+                                        0,          0,          0,          0,
+                                        0,          0,          0,          0,
+                                        "POLLNVAL"};
+    
     while (!done)
     {
         unsigned int total_poll_fds = current_socket_count;
@@ -95,16 +105,6 @@ int main(int argc, char *argv[])
         {
             if (pfds[i].revents == 0)
                 continue;
-
-            char* debug_revents[] = {   "NONE",     "POLLIN",   "POLLPRI",  0, 
-                                        "POLLOUT",  0,          0,          0,
-                                        "POLLERR",  0,          0,          0,
-                                        0,          0,          0,          0,
-                                        "POLLHUP",  0,          0,          0,
-                                        0,          0,          0,          0,
-                                        0,          0,          0,          0,
-                                        0,          0,          0,          0,
-                                        "POLLNVAL"};
 
             log(DEBUG, "%s Socket %d (of fd %d) - revents = %s", sockets[socket_index[i]].passive? "Passive": "Active", i, pfds[i].fd, debug_revents[pfds[i].revents]);
             

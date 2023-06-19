@@ -342,7 +342,8 @@ command_t *handle_show_users_command(command_t *command_state, buffer_t buffer, 
             index += snprintf(ans + index, MAX_LINE_LENGTH, LINE_RESP, user->username);
         }
     }
-    return handle_simple_command(command_state, buffer, ans);
+    command_state->answer = ans;
+    return handle_simple_command(command_state, buffer,NULL);
 }
 
 // c?

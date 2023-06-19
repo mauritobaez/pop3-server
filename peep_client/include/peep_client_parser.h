@@ -30,9 +30,8 @@ typedef enum client_commands {
 typedef struct {
     client_commands type;
     char* str_args[2];
-    int num_arg;
 } command_info;
-
+#define IS_MULTILINE(command_type) ( (command_type) == SHOW_USERS || (command_type) == SHOW_CURR_LOGGED_IN || (command_type) == CAPABILITIES )
 #define MAX_WORDS_COMMAND 4
 
 command_info* parse_user_command(char* command);

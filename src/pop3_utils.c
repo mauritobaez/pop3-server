@@ -239,7 +239,7 @@ command_t *handle_retr_write_command(command_t *command_state, buffer_t buffer, 
     if (command_state->answer == NULL)
     { // STARTUP
         command_state->answer = malloc(MAX_LINE + 1);
-        RETR_STATE(command_state)->multiline_state = 0;
+        RETR_STATE(command_state)->multiline_state = 2;
         RETR_STATE(command_state)->final_dot = false;
         strncpy(command_state->answer, RETR_OK_MSG, RETR_OK_MSG_LENGTH);
     }
