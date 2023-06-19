@@ -23,7 +23,7 @@ typedef enum client_commands {
     SHOW_CURR_LOGGED_IN,               //cu? current logged amount|
     SHOW_HIST_CONNECTION_COUNT,        //hc? all time connection amount|
     SHOW_HIST_LOGGED_IN_COUNT,         //hu all time logged amount|
-    HELP,                              //h? help|
+    CAPABILITIES,                      //cap? list capabilities|
     UNKNOWN                       
 } client_commands;
 

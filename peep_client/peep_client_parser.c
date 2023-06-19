@@ -7,7 +7,7 @@
 char* str_to_upper(char* str);
 
 client_commands one_word_commands(const char* command) {
-    if(strcmp(command, "HELP")==0) return HELP;
+    if(strcmp(command, "CAPA")==0) return CAPABILITIES;
     if(strcmp(command, "QUIT")==0) return QUIT;
     if(strcmp(command, "MAILDIR")==0) return SHOW_MAILDIR;
     if(strcmp(command, "TIMEOUT")==0) return  SHOW_TIMEOUT;
@@ -17,7 +17,7 @@ client_commands one_word_commands(const char* command) {
 
 client_commands two_word_commands(const char* first_part, const char* second_part) {
     // comparar con retrived-bytes retrived-emails max-connections
-    if(strcmp(first_part, "RETRIVE")==0) {
+    if(strcmp(first_part, "RETREIVE")==0) {
         if(strcmp(second_part, "BYTES")==0) return SHOW_RETRIEVED_BYTES;
         if(strcmp(second_part, "EMAILS")==0) return SHOW_RETRIEVED_EMAILS_COUNT;
     }

@@ -8,7 +8,7 @@
 #define PEEP_PORT_DEFAULT "2110"
 #define CRLF "\r\n"
 
-#define MAX_COMMAND_LENGTH 256
+#define MAX_COMMAND_LENGTH 268
 
 
 

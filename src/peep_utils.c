@@ -44,7 +44,7 @@ command_t *handle_show_curr_connection_count_command(command_t *command_state, b
 command_t *handle_show_curr_logged_in_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
 command_t *handle_show_hist_connection_count_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
 command_t *handle_show_hist_logged_in_count_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
-command_t *handle_help_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
+command_t *handle_capa_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
 
 
 command_info peep_commands[PEEP_COMMAND_COUNT] = {
@@ -66,7 +66,7 @@ command_info peep_commands[PEEP_COMMAND_COUNT] = {
     {.name = "cu?", .command_handler = (command_handler)&handle_show_curr_logged_in_command, .type = C_SHOW_CURR_LOGGED_IN, .valid_states = AUTHENTICATED},
     {.name = "hc?", .command_handler = (command_handler)&handle_show_hist_connection_count_command, .type = C_SHOW_HIST_CONNECTION_COUNT, .valid_states = AUTHENTICATED},
     {.name = "hu?", .command_handler = (command_handler)&handle_show_hist_logged_in_count_command, .type = C_SHOW_HIST_LOGGED_IN_COUNT, .valid_states = AUTHENTICATED},
-    {.name = "h?",  .command_handler = (command_handler)&handle_help_command, .type = C_HELP, .valid_states = AUTHENTICATION | AUTHENTICATED}
+    {.name = "cap?",  .command_handler = (command_handler)&handle_capa_command, .type = C_CAPABILITIES, .valid_states = AUTHENTICATION | AUTHENTICATED}
 };
 
 uint8_t get_arg_count(command_t* command_state) {
@@ -466,9 +466,9 @@ command_t *handle_show_hist_logged_in_count_command(command_t *command_state, bu
     RETURN_POSITIVE_RESPONSE_INTEGER(command_state,buffer,response); 
 }
 
-// h?
-command_t *handle_help_command(command_t *command_state, buffer_t buffer, client_info_t *client_state) 
+// cap?
+command_t *handle_capa_command(command_t *command_state, buffer_t buffer, client_info_t *client_state) 
 {
-    return handle_simple_command(command_state, buffer, PEEP_HELP);    
+    return handle_simple_command(command_state, buffer, PEEP_CAPA);    
 }
 
