@@ -186,10 +186,10 @@ void print_config(server_config config) {
     while(iterator_has_next(config.users)){
         user_t *user = iterator_next(config.users);
         log(INFO, "USER: %s, PASSWORD: %s\n", user->username, user->password);
+    }
         log(INFO, "MAILDIR: %s\n", config.maildir);
         log(INFO, "POP3-PORT: %s\n", config.pop3_port);
         log(INFO, "PEEP-PORT: %s\n", config.peep_port);
-    }
 }
 
 void free_server_config(server_config config) {

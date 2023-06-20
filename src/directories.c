@@ -26,7 +26,6 @@ typedef struct email_file_info {
 // -> 
 // returns: filename and size of files in said directory and the amount of emails
 email_metadata_t* get_file_info(const char* directory, size_t *email_count) {
-    printf("Directory: %s\n", directory);
     //Abro el directorio en cuestión
     DIR * dirp = opendir(directory); //debería quedar maildir/directory/ o con ./ al principio no me acuerdo
     email_metadata_t * files = NULL;

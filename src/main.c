@@ -125,4 +125,12 @@ int main(int argc, char *argv[])
             }
         }
     }
+
+    log(INFO, "%s","Shutting down server\n");
+    for(unsigned int i = 0; i < MAX_SOCKETS; i++) {
+        if(sockets[i].occupied) {
+            free_client_socket(sockets[i].fd);
+        }
+    }
+
 }
