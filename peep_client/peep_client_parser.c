@@ -68,7 +68,7 @@ client_commands four_word_commands(char* first_part, char* second_part, char* th
     
     str_to_upper(third_part);
 
-    if(strcmp(first_part,"SET")==0 && strcmp(second_part,"MAX")==0 && strcmp(third_part, "CONNECTIONS")) {
+    if(strcmp(first_part,"SET")==0 && strcmp(second_part,"MAX")==0 && strcmp(third_part, "CONNECTIONS")==0) {
         SET_ARG(cmd->str_args[0], fourth_part);
         return SET_MAX_CONNECTIONS;
     }
