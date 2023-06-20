@@ -461,7 +461,6 @@ command_t *handle_quit_command(command_t *command_state, buffer_t buffer, client
         }
 
         add_successful_quit();
-        log(INFO, "User: %s logged out\n", client_state->selected_user->username);
         return handle_simple_command(command_state, buffer, NULL);
     }
     return handle_simple_command(command_state, buffer, answer);
@@ -619,6 +618,7 @@ void free_pop3_client(pop3_client *client)
 {
     if (client->current_state & TRANSACTION)
     {
+        log(INFO, "User: %s logged out\n", client->selected_user->username);
         remove_loggedin_user();
         client->selected_user->locked = false;
     }
