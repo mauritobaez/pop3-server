@@ -45,30 +45,37 @@ int main(int argc, char* argv[]) {
         switch (command->type){
             case QUIT:
                 fprintf(server, "q\r\n");
+                // TODO: goto end
                 break;
             case ADD_USER:
                 fprintf(server, "u+ %s %s\r\n", command->str_args[0], command->str_args[1]);
+                free(command->str_args[0]);
+                free(command->str_args[1]);
                 break;
             case DELETE_USER:
                 fprintf(server, "u- %s\r\n", command->str_args[0]);
+                free(command->str_args[0]);
                 break;
             case SHOW_USERS:
                 fprintf(server, "u?\r\n");
                 break;
             case SET_MAX_CONNECTIONS:   
                 fprintf(server, "c= %s\r\n", command->str_args[0]);
+                free(command->str_args[0]);
                 break;
             case SHOW_MAX_CONNECTIONS:
                 fprintf(server, "c?\r\n");
                 break;
             case SET_MAILDIR:
                 fprintf(server, "m= %s\r\n", command->str_args[0]);
+                free(command->str_args[0]);
                 break;
             case SHOW_MAILDIR:
                 fprintf(server, "m?\r\n");
                 break;
             case SET_TIMEOUT:
                 fprintf(server, "t= %s\r\n", command->str_args[0]);
+                free(command->str_args[0]);
                 break;
             case SHOW_TIMEOUT:
                 fprintf(server, "t?\r\n");
@@ -97,6 +104,9 @@ int main(int argc, char* argv[]) {
             case CAPABILITIES:
                 fprintf(server, "cap?\r\n");
                 break;
+            case HELP:
+                printf("//TODO Agregar los comandos\r\n");
+                continue;
             case UNKNOWN:
             default:
                 error = true;
@@ -111,5 +121,7 @@ int main(int argc, char* argv[]) {
         }else{
             printf("Unknown command\n");
         }
+
+        free(command);
     }
 }

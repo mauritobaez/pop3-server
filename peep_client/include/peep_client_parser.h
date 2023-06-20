@@ -10,7 +10,7 @@ typedef enum client_commands {
     ADD_USER,                          //u+ add user|
     DELETE_USER,                       //u- delete user|
     SHOW_USERS,                        //u? users|
-    SET_MAX_CONNECTIONS,               //c= set max connections|
+    SET_MAX_CONNECTIONS,               //c= set max connections| REPAIR
     SHOW_MAX_CONNECTIONS,              //c? max connections|
     SET_MAILDIR,                       //m= set maildir|
     SHOW_MAILDIR,                      //m? maildir|
@@ -24,7 +24,8 @@ typedef enum client_commands {
     SHOW_HIST_CONNECTION_COUNT,        //hc? all time connection amount|
     SHOW_HIST_LOGGED_IN_COUNT,         //hu all time logged amount|
     CAPABILITIES,                      //cap? list capabilities|
-    UNKNOWN                       
+    UNKNOWN,
+    HELP                       
 } client_commands;
 
 typedef struct {
