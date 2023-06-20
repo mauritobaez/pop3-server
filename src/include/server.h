@@ -33,6 +33,8 @@ typedef struct server_config {
     size_t timeout;
     queue_t users;
     user_t peep_admin;
+    char* pop3_port;
+    char* peep_port;
     char *maildir;
 } server_config;
 

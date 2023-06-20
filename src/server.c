@@ -12,7 +12,10 @@
 */
 
 #define PATH_MAX 512
-#define TOTAL_ARGUMENTS 3
+#define TOTAL_ARGUMENTS 5
+#define POP3_PORT "1110"
+#define PEEP_PORT "2110"
+
 
 server_metrics metrics;
 server_config global_config;
@@ -20,11 +23,15 @@ server_config global_config;
 int handle_user(int argc, char *arg[], server_config* config);
 int handle_mail(int argc, char *arg[], server_config* config);
 int handle_peep_admin(int argc, char *arg[], server_config* config);
+int handle_pop3_port(int argc, char *arg[], server_config* config);
+int handle_peep_port(int argc, char *arg[], server_config* config);
 
 argument_t arguments[TOTAL_ARGUMENTS] = {
     {.argument = "-u", .handler = handle_user},
     {.argument = "-m", .handler = handle_mail},
-    {.argument = "--peep-admin", .handler = handle_peep_admin}
+    {.argument = "--peep-admin", .handler = handle_peep_admin},
+    {.argument = "--pop3-port", .handler = handle_pop3_port},
+    {.argument = "--peep-port", .handler = handle_peep_port}
 };
 
 int handle_user(int argc, char *arg[], server_config* config) {
@@ -92,6 +99,32 @@ int handle_peep_admin(int argc, char *arg[], server_config* config) {
     config->peep_admin.password = user.password;
     return 1;
 }
+int handle_pop3_port(int argc, char *arg[], server_config* config) {
+    if (argc == 0) {
+        log(FATAL, "No matching property for argument: %s\n", "--pop3-port");
+    }
+    int port = atoi(arg[0]);
+    if (port < 0 || port > 65535) {
+        log(FATAL, "Invalid port: %s\n", arg[0]);
+    }
+    free(config->pop3_port);
+    config->pop3_port = malloc(strlen(arg[0]) + 1);
+    strcpy(config->pop3_port, arg[0]);
+    return 1;
+}
+int handle_peep_port(int argc, char *arg[], server_config* config) {
+    if (argc == 0) {
+        log(FATAL, "No matching property for argument: %s\n", "--peep-port");
+    }
+    int port = atoi(arg[0]);
+    if (port < 0 || port > 65535) {
+        log(FATAL, "Invalid port: %s\n", arg[0]);
+    }
+    free(config->peep_port);
+    config->peep_port = malloc(strlen(arg[0]) + 1);
+    strcpy(config->peep_port, arg[0]);
+    return 1;
+}
 
 server_config create_defaults(server_config config) {
     if (config.maildir == NULL) {
@@ -107,6 +140,8 @@ server_config create_defaults(server_config config) {
 server_config get_server_config(int argc, char *argv[]) {
     char* default_peep_admin = "root";
     unsigned int length = strlen(default_peep_admin) + 1;
+    unsigned int pop3_port_length = strlen(POP3_PORT) + 1;
+    unsigned int peep_port_length = strlen(PEEP_PORT) + 1;
     server_config config = {
         .max_connections = MAX_CONNECTION_LIMIT,
         .timeout = 0,
@@ -115,10 +150,14 @@ server_config get_server_config(int argc, char *argv[]) {
         .peep_admin = (user_t) {
             .username = malloc(length),
             .password = malloc(length)
-        }
+        },
+        .pop3_port = malloc(pop3_port_length),
+        .peep_port = malloc(peep_port_length)
     };
     strncpy(config.peep_admin.username, default_peep_admin, length);
     strncpy(config.peep_admin.password, default_peep_admin, length);
+    strncpy(config.pop3_port, POP3_PORT, pop3_port_length);
+    strncpy(config.peep_port, PEEP_PORT, peep_port_length);
     // ignoro nombre de programa
     argv = argv + 1;
     argc -= 1;
@@ -147,6 +186,9 @@ void print_config(server_config config) {
     while(iterator_has_next(config.users)){
         user_t *user = iterator_next(config.users);
         log(INFO, "USER: %s, PASSWORD: %s\n", user->username, user->password);
+        log(INFO, "MAILDIR: %s\n", config.maildir);
+        log(INFO, "POP3-PORT: %s\n", config.pop3_port);
+        log(INFO, "PEEP-PORT: %s\n", config.peep_port);
     }
 }
 
@@ -158,6 +200,11 @@ void free_server_config(server_config config) {
         free(user);
     }
     free(config.users);
+    free(config.peep_admin.username);
+    free(config.peep_admin.password);
+    free(config.maildir);
+    free(config.pop3_port);
+    free(config.peep_port);
 }
 
 void start_metrics() {
