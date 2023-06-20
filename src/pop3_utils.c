@@ -293,9 +293,7 @@ command_t *handle_retr_write_command(command_t *command_state, buffer_t buffer, 
             }
             else if (RETR_STATE(command_state)->multiline_state == 2 && written_character == '.')
             {   
-        
                 has_written = buffer_write_and_advance(buffer, ".", 1);
-                written_bytes += has_written;
                 if(has_written){
                     RETR_STATE(command_state)->multiline_state = 0;
                 }

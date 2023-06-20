@@ -8,9 +8,9 @@
 #include "server.h"
 #include "command_utils.h"
 
-#define POP3_WRITING_BUFFER_SIZE 1024
+#define POP3_WRITING_BUFFER_SIZE 4096
 #define COMMAND_COUNT 10
-#define MAX_LINE 512
+#define MAX_LINE 4096
 
 //values for state_t
 #define AUTH_PRE_USER 0x01
