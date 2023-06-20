@@ -29,7 +29,7 @@ email_metadata_t* get_file_info(const char* directory, size_t *email_count) {
     //Abro el directorio en cuestión
     DIR * dirp = opendir(directory); //debería quedar maildir/directory/ o con ./ al principio no me acuerdo
     email_metadata_t * files = NULL;
-    log(INFO, "DIRP is NULL %d", dirp == NULL);
+    log(DEBUG, "DIRP is NULL %d", dirp == NULL);
     *email_count = 0;
     if(dirp != NULL) {
         size_t total_files = count_files_in_dir(dirp);

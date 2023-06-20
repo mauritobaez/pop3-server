@@ -89,7 +89,7 @@ int handle_peep_client(void *index, bool can_read, bool can_write) {
 
         if (buffer_available_chars_count(socket->writing_buffer) == 0 && peep_client_info->closing)
         {
-            log(INFO, "Socket %d - closing session\n", i);
+            log(DEBUG, "Socket %d - closing session\n", i);
             goto close_peep_client;
         }
         
@@ -166,7 +166,6 @@ int handle_peep_client(void *index, bool can_read, bool can_write) {
     return 0;
 
 close_peep_client:
-    //TODO:dejamos esto o lo sacamos
     return -1;
 }
 
@@ -291,7 +290,6 @@ command_t *handle_add_user_command(command_t *command_state, buffer_t buffer, cl
         RETURN_NEGATIVE_RESPONSE(command_state, buffer, 3);
 
     char* password = command_state->args[1];
-    // TODO: ver que la password tenga sentido?
     user_t* new_user = malloc(sizeof(user_t));
     new_user->username = malloc(strlen(username) + 1);
     strcpy(new_user->username, username);

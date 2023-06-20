@@ -28,7 +28,6 @@ int main(int argc, char *argv[])
     print_config(global_config);
     signal(SIGTERM, sigterm_handler);
     signal(SIGINT, sigterm_handler);
-    //TODO: chequear que funcione para IPv4 e IPv6 en pampero
     sockets[0].fd = setup_passive_socket(global_config.pop3_port);
     sockets[0].handler = (int (*)(void *, bool, bool)) & accept_pop3_connection;
     sockets[0].occupied = true;
@@ -70,7 +69,7 @@ int main(int argc, char *argv[])
             if (sockets[j].occupied)
             {
                 if(global_config.timeout > 0 && sockets[j].last_interaction != 0 && sockets[j].last_interaction + (time_t) global_config.timeout < now) {
-                    log(INFO, "Closing connection of client %d due to exceeded timeout\n", j);
+                    log(DEBUG, "Closing connection of client %d due to exceeded timeout\n", j);
                     free_client_socket(sockets[j].fd);
                     total_poll_fds--;
                 }

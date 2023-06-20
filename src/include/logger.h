@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
+#include <time.h>
 
 #define ERROR_LOG_LENGTH 64
 
@@ -35,7 +36,10 @@ char *levelDescription(LOG_LEVEL level);
 	{                                                                                    \
 		if (level >= current_level)                                                      \
 		{                                                                                \
-			fprintf(stderr, "%s: %s:%d, ", levelDescription(level), __FILE__, __LINE__); \
+			time_t now = time(NULL);                                                     \
+			char* time_str = ctime(&now);												 \
+			time_str[strlen(time_str)-1] = '\0';                                          \
+			fprintf(stderr, "%s: %s:%d,%s, ", levelDescription(level), __FILE__, __LINE__, time_str); \
 			fprintf(stderr, fmt, __VA_ARGS__);                                         	 \
 			fprintf(stderr, "\n");                                                       \
 		}                                                                                \

@@ -34,7 +34,6 @@ client_commands three_word_commands(char* first_part, char* second_part, char* t
             SET_ARG(cmd->str_args[0], third_part);
             return SET_MAILDIR;
         } else if(strcmp(second_part, "TIMEOUT")==0) {
-            // TODO: error en el atoi
             SET_ARG(cmd->str_args[0], third_part);
             return SET_TIMEOUT;
         }

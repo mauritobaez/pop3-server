@@ -63,7 +63,7 @@ int handle_pop3_client(void *index, bool can_read, bool can_write)
         
         if (buffer_available_chars_count(socket->writing_buffer) == 0 && pop3_client_info->closing)
         {
-            log(INFO, "Socket %d - closing session\n", i);
+            log(DEBUG, "Socket %d - closing session\n", i);
             goto close_client;
         }
         
@@ -141,7 +141,6 @@ int handle_pop3_client(void *index, bool can_read, bool can_write)
     return 0;
 
 close_client:
-//TODO: lo dejamos?
     return -1;
 }
 
@@ -233,7 +232,6 @@ command_t *handle_user_command(command_t *command_state, buffer_t buffer, client
     return handle_simple_command(command_state, buffer, answer);
 }
 
-// TODO: FIX MULTILINE AND BUFFER STUFFING
 command_t *handle_retr_write_command(command_t *command_state, buffer_t buffer, client_info_t *client_state)
 {
     if (command_state->answer == NULL)
@@ -349,8 +347,8 @@ command_t *handle_retr_command(command_t *command_state, buffer_t buffer, client
                 free(command);
                 return handle_simple_command(command_state, buffer, RETR_ERR_FOUND_MSG);
             }
+            //No deberia romperse porque ya se valido que el archivo exista cuando lo indexamos
             int emailfd = open_email_file(pop3_state, email->filename);
-            // todo: error opening file
             int flags = fcntl(emailfd, F_GETFL, 0);
             fcntl(emailfd, F_SETFL, flags | O_NONBLOCK);
             command->answer = NULL;
@@ -362,6 +360,7 @@ command_t *handle_retr_command(command_t *command_state, buffer_t buffer, client
             RETR_STATE(command)->multiline_state = 0;
             RETR_STATE(command)->final_dot = false;
             add_email_read();
+            log(INFO, "User: %s retrieved email %s",client_state->pop3_client_info->selected_user->username, email->filename)
         }
     }
     else
@@ -394,13 +393,12 @@ command_t *handle_pass_command(command_t *command_state, buffer_t buffer, client
                     answer = PASS_OK_MSG;
                     client_state->current_state = TRANSACTION;
                     client_state->selected_user->locked = true;
-                    // TODO: ACA hacer lo de LOCK para el usuario si no esta disponible pones -ERR unable to lock maildrop
-                    // Y cuanod se haga QUIT liberar el lock
                     add_loggedin_user();
                     char *user_maildir = join_path(global_config.maildir, client_state->selected_user->username);
                     client_state->user_maildir = user_maildir;
                     client_state->emails = get_file_info(user_maildir, &(client_state->emails_count));
-                    log(INFO, "retrieved emails: %ld\n", client_state->emails_count);
+                    log(DEBUG, "retrieved emails: %ld\n", client_state->emails_count);
+                    log(INFO, "User: %s logged in\n", client_state->selected_user->username);
                 }
                 else
                 {
@@ -445,7 +443,7 @@ command_t *handle_quit_command(command_t *command_state, buffer_t buffer, client
                     log(ERROR, "Error deleting email %s\n", email_path);
                     error=true;
                 }else{
-                    log(INFO, "Deleted email %s\n", email_path);
+                    log(INFO, "User: %s deleted email %s\n",client_state->selected_user->username,email_path);
                     new_emails_count--;
                     // deleted email metric
                     add_email_removed();
@@ -463,6 +461,7 @@ command_t *handle_quit_command(command_t *command_state, buffer_t buffer, client
         }
 
         add_successful_quit();
+        log(INFO, "User: %s logged out\n", client_state->selected_user->username);
         return handle_simple_command(command_state, buffer, NULL);
     }
     return handle_simple_command(command_state, buffer, answer);
@@ -644,7 +643,7 @@ void log_emails(email_metadata_t *emails, size_t c)
 {
     for (size_t i = 0; i < c; i += 1)
     {
-        log(INFO, "email %s octets: %lu\n", emails[i].filename, emails[i].octets);
+        log(DEBUG, "email %s octets: %lu\n", emails[i].filename, emails[i].octets);
     }
 }
 

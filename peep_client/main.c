@@ -112,6 +112,7 @@ int main(int argc, char* argv[]) {
                 "| max connections | set maildir <path> | set timeout <value> | delete user <username>" 
                 "| current connections amount | current logged users | removed emails amount | add user <username> <password>" 
                 "| set max connections <value> | all time connection/logged amount \r\n");
+                free(command);
                 continue;
             case UNKNOWN:
             default:
