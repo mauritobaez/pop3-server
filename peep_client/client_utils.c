@@ -111,7 +111,7 @@ int handle_server_response(FILE* server_fd, bool last_command_was_multiline){
         }else{
             int lines_to_read = atoi(first_line+1);
             if(lines_to_read == 0){
-                fprintf(stdout,OK_RESPONSE"CRLF");
+                fprintf(stdout,OK_RESPONSE CRLF);
                 return 0;
             }
             char* lines = malloc(STD_BUFFER_SIZE*lines_to_read);
@@ -149,7 +149,7 @@ int handle_server_response(FILE* server_fd, bool last_command_was_multiline){
         if(error_code < 0 || error_code >= ERROR_COUNT){
             FATAL_ERROR("invalid error code %d", error_code);
         }
-        fprintf(stdout, "ERROR! %s CRLF", error_responses[error_code]);
+        fprintf(stdout, "ERROR! %s" CRLF, error_responses[error_code]);
     }
     return 0;
 }
