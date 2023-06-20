@@ -90,20 +90,24 @@ command_info* parse_user_command(char* command) {
     char* words[MAX_WORDS_COMMAND];
     int index=0;
     words[index++] = strtok(command, " ");
+    // only an enter has been sent
+    if(words[0]==NULL)
+        return NULL;
     char* strtok_value;
-    while((strtok_value = strtok(NULL, " "))!=NULL){
+
+    command_info* cmd = calloc(1, sizeof(command_info));
+    
+    while((strtok_value = strtok(NULL, " "))!=NULL) {
+        if(index>=4) {
+            cmd->type = UNKNOWN;
+            return cmd;
+        } 
         words[index++] = strtok_value;
     }
     
     str_to_upper(words[0]);
     if(index>1) str_to_upper(words[1]);
     
-    command_info* cmd = calloc(1, sizeof(command_info));
-
-    if(index>4) {
-        cmd->type = UNKNOWN;
-        return cmd;
-    }
 
     if(index == 1) {
         cmd->type = one_word_commands(words[0]);

@@ -41,11 +41,14 @@ int main(int argc, char* argv[]) {
         }
         STDIN_BUFFER[index_stdin]='\0';
         command = parse_user_command(STDIN_BUFFER);
+    bool end = 0;
     bool error = 0;
+        if(command==NULL)
+            continue;
         switch (command->type){
             case QUIT:
                 fprintf(server, "q\r\n");
-                // TODO: goto end
+                end = 1;
                 break;
             case ADD_USER:
                 fprintf(server, "u+ %s %s\r\n", command->str_args[0], command->str_args[1]);
@@ -105,7 +108,10 @@ int main(int argc, char* argv[]) {
                 fprintf(server, "cap?\r\n");
                 break;
             case HELP:
-                printf("//TODO Agregar los comandos\r\n");
+                printf("capa | quit | maildir | timeout | users | help | retrieved bytes/emails"
+                "| max connections | set maildir <path> | set timeout <value> | delete user <username>" 
+                "| current connections/logged amount | removed emails amount | add user <username> <password>" 
+                "| set max connections <value> | all time connection/logged amount \r\n");
                 continue;
             case UNKNOWN:
             default:
@@ -121,7 +127,10 @@ int main(int argc, char* argv[]) {
         }else{
             printf("Unknown command\n");
         }
-
         free(command);
+        if(end)
+            goto end;
     }
+    end:
+    fclose(server);
 }
