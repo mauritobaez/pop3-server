@@ -110,7 +110,7 @@ int main(int argc, char* argv[]) {
             case HELP:
                 printf("capa | quit | maildir | timeout | users | help | retrieved bytes/emails"
                 "| max connections | set maildir <path> | set timeout <value> | delete user <username>" 
-                "| current connections/logged amount | removed emails amount | add user <username> <password>" 
+                "| current connections amount | current logged users | removed emails amount | add user <username> <password>" 
                 "| set max connections <value> | all time connection/logged amount \r\n");
                 continue;
             case UNKNOWN:

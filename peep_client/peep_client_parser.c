@@ -47,13 +47,14 @@ client_commands three_word_commands(char* first_part, char* second_part, char* t
 
     str_to_upper(third_part);
     if(strcmp(third_part, "AMOUNT")==0) {
-        if(strcmp(first_part, "CURRENT")==0) {
-            if(strcmp(second_part, "CONNECTIONS")==0) return SHOW_CURR_CONNECTION_COUNT;
-            if(strcmp(second_part, "LOGGED")==0) return SHOW_CURR_LOGGED_IN;
-        }
+        if(strcmp(first_part, "CURRENT")==0 && strcmp(second_part, "CONNECTIONS")==0)
+            return SHOW_CURR_CONNECTION_COUNT;
         if(strcmp(first_part, "REMOVED")==0 && strcmp(second_part, "EMAILS")==0)
             return SHOW_REMOVED_EMAILS_COUNT;
     }
+
+    if(strcmp(first_part,"CURRENT")==0 && strcmp(second_part, "LOGGED")==0 && strcmp(third_part, "USERS")==0) 
+        return SHOW_CURR_LOGGED_IN;
 
     return UNKNOWN;
 }

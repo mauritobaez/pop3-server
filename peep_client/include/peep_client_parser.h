@@ -20,7 +20,7 @@ typedef enum client_commands {
     SHOW_RETRIEVED_EMAILS_COUNT,       //re? retrived emails|
     SHOW_REMOVED_EMAILS_COUNT,         //xe? removed emails amount|
     SHOW_CURR_CONNECTION_COUNT,        //cc? current connections amount|
-    SHOW_CURR_LOGGED_IN,               //cu? current logged amount|
+    SHOW_CURR_LOGGED_IN,               //cu? current logged users
     SHOW_HIST_CONNECTION_COUNT,        //hc? all time connection amount|
     SHOW_HIST_LOGGED_IN_COUNT,         //hu all time logged amount|
     CAPABILITIES,                      //cap? list capabilities|
