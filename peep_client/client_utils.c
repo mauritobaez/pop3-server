@@ -31,13 +31,18 @@ char* error_responses[ERROR_COUNT]={
 };
 
 char* name_of_config[CONFIG_COUNT] = {
-    "address", "port", "username", "password"
+    "address", "port", "user", "pass"
 };
 
 client_config get_client_config (int argc, char* argv[]) {
     client_config config = {NULL};
     argv = argv + 1;
     argc -= 1;
+
+    if(argc==1 && strcmp(argv[0],"--help")==0) {
+        FATAL_ERROR("Arguments must include: %s %s %s %s\n", name_of_config[0], name_of_config[1], name_of_config[2], name_of_config[3]);
+    }
+
     while (argc >= 2) {
         bool found = false;
         for (int i = 0; i < TOTAL_ARGUMENTS && !found; i += 1) {
@@ -53,7 +58,7 @@ client_config get_client_config (int argc, char* argv[]) {
     }
     for (int i = 0; i < CONFIG_COUNT; i += 1) {
         if (config.values[i] == NULL) {
-            FATAL_ERROR("argument %s not set!\n", name_of_config[i]);
+            FATAL_ERROR("argument %s not set! Use --help in order to see needed arguments\n", name_of_config[i]);
         }
     }
     return config;
