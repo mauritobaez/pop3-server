@@ -452,6 +452,9 @@ command_t *handle_quit_command(command_t *command_state, buffer_t buffer, client
     pop3_client *pop3_client = client_state->pop3_client_info;
     pop3_client->closing = true;
     char *answer = QUIT_MSG;
+    if(command_state->answer != NULL){
+        return handle_simple_command(command_state, buffer,NULL);
+    }
     if (pop3_client->current_state & TRANSACTION) //Si se llamo no estando en transaction entonces no se estaba loggeado
     {
         pop3_client->selected_user->locked = false;
@@ -617,9 +620,12 @@ command_t *handle_capa(command_t *command_state, buffer_t buffer, client_info_t 
 command_t *handle_rset_command(command_t *command_state, buffer_t buffer, client_info_t *client_state)
 {
     pop3_client *pop3_state = client_state->pop3_client_info;
-    for (size_t i = 0; i < pop3_state->emails_count; i += 1)
-    {
-        pop3_state->emails[i].deleted = false;
+    if(command_state->answer == NULL){
+    
+        for (size_t i = 0; i < pop3_state->emails_count; i += 1)
+        {
+            pop3_state->emails[i].deleted = false;
+        }
     }
     return handle_simple_command(command_state, buffer, RSET_MSG);
 }
@@ -627,6 +633,9 @@ command_t *handle_rset_command(command_t *command_state, buffer_t buffer, client
 command_t *handle_dele_command(command_t *command_state, buffer_t buffer, client_info_t *client_state)
 {
     pop3_client *pop3_state = client_state->pop3_client_info;
+    if(command_state->answer != NULL){
+        return handle_simple_command(command_state, buffer, NULL);
+    }
     if (command_state->args[0] == NULL)
     {
         return handle_simple_command(command_state, buffer, INVALID_NUMBER_ARGUMENT);

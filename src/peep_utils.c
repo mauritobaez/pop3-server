@@ -464,6 +464,9 @@ command_t *handle_show_curr_logged_in_command(command_t *command_state, buffer_t
 {
     queue_t list = global_config.users;
     size_t user_count = 0;
+    if(command_state->answer != NULL){
+        return handle_simple_command(command_state, buffer, NULL);
+    }
     iterator_to_begin(list);
     while (iterator_has_next(list))
     {
