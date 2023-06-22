@@ -346,6 +346,9 @@ command_t *handle_delete_user_command(command_t *command_state, buffer_t buffer,
 // u?
 command_t *handle_show_users_command(command_t *command_state, buffer_t buffer, client_info_t *client_state)
 {
+    if (command_state->answer != NULL) {
+        return handle_simple_command(command_state, buffer, NULL);
+    }
     queue_t list = global_config.users;
     size_t user_count = 0;
     iterator_to_begin(list);
