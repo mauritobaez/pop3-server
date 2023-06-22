@@ -9,8 +9,9 @@
 #include <fcntl.h>
 
 #include "logger.h"
-#include "./pop3_utils.h"
+#include "pop3_utils.h"
 #include "directories.h"
+#include "server.h"
 
 size_t count_files_in_dir(DIR *dirp);
 
@@ -50,9 +51,9 @@ email_metadata_t* get_file_info(const char* directory, size_t *email_count) {
                 stat(path, &sb);
                 if (S_ISREG(sb.st_mode)) {
                     files[index].octets = sb.st_size;
-                    files[index].filename = malloc(strlen(curr->d_name) + 1);
+                    files[index].filename = malloc(directory_length + strlen(curr->d_name) + 2);
                     files[index].deleted = false;
-                    strcpy(files[index].filename, curr->d_name);
+                    strcpy(files[index].filename, path);
                     index++;
                     *email_count += 1;
                 }
@@ -64,12 +65,16 @@ email_metadata_t* get_file_info(const char* directory, size_t *email_count) {
     return files;
 }
 
-int open_email_file(pop3_client* client, char *filename) {
-    char *mailbox = client->user_maildir;
-    char *mail_filename = join_path(mailbox, filename);
-    int fd = open(mail_filename, O_RDONLY);
-    free(mail_filename);
-    return fd;
+FILE* open_email_file(pop3_client* client, char *filename) {
+    char command_string[1024];
+    strcpy(command_string, "cat ");
+    strcat(command_string, filename);
+    if (global_config.transform_program != NULL) {
+        strcat(command_string, "| ");
+        strcat(command_string, global_config.transform_program);
+    }
+    FILE* stream = popen(command_string, "r");
+    return stream;
 }
 
 size_t count_files_in_dir(DIR *dirp) {

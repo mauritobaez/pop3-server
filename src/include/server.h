@@ -35,7 +35,8 @@ typedef struct server_config {
     user_t peep_admin;
     char* pop3_port;
     char* peep_port;
-    char *maildir;
+    char* maildir;
+    char* transform_program;
 } server_config;
 
 typedef int(*handle_argument)(int argc, char *arg[], server_config* config);

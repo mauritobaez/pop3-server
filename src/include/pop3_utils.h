@@ -1,6 +1,7 @@
 #ifndef POP_UTILS_H_
 #define POP_UTILS_H_
 
+#include <stdio.h>
 #include <stdbool.h>
 #include "queue.h"
 #include "buffer.h"
@@ -45,6 +46,7 @@ typedef struct retr_state_t {
     bool finished_line; // finished writing 512 line
     bool greeting_done; // greeting done
     bool final_dot;
+    FILE* email_stream; // email file stream (to pclose)
 } retr_state_t;
 
 typedef struct email_metadata_t {

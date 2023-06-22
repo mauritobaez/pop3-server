@@ -1,6 +1,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
+#include <strings.h>
 
 #include "server.h"
 #include "directories.h"
@@ -12,7 +13,7 @@
 */
 
 #define PATH_MAX 512
-#define TOTAL_ARGUMENTS 5
+#define TOTAL_ARGUMENTS 6
 #define POP3_PORT "1110"
 #define PEEP_PORT "2110"
 
@@ -25,13 +26,15 @@ int handle_mail(int argc, char *arg[], server_config* config);
 int handle_peep_admin(int argc, char *arg[], server_config* config);
 int handle_pop3_port(int argc, char *arg[], server_config* config);
 int handle_peep_port(int argc, char *arg[], server_config* config);
+int handle_transform_command(int argc, char *arg[], server_config* config);
 
 argument_t arguments[TOTAL_ARGUMENTS] = {
     {.argument = "-u", .handler = handle_user},
     {.argument = "-m", .handler = handle_mail},
     {.argument = "--peep-admin", .handler = handle_peep_admin},
     {.argument = "--pop3-port", .handler = handle_pop3_port},
-    {.argument = "--peep-port", .handler = handle_peep_port}
+    {.argument = "--peep-port", .handler = handle_peep_port},
+    {.argument = "--transform", .handler = handle_transform_command}
 };
 
 int handle_user(int argc, char *arg[], server_config* config) {
@@ -57,6 +60,16 @@ int handle_user(int argc, char *arg[], server_config* config) {
     user->locked = false;
     user->removed = false;
     enqueue(config->users, user);
+    return 1;
+}
+
+int handle_transform_command(int argc, char *arg[], server_config* config) {
+    if (argc == 0) {
+        log(FATAL, "No matching property for argument: %s\n", "--transform");
+    }
+    size_t command_length = strlen(arg[0]) + 1;
+    config->transform_program = malloc(command_length);
+    strncpy(config->transform_program, arg[0], command_length);
     return 1;
 }
 
@@ -152,7 +165,8 @@ server_config get_server_config(int argc, char *argv[]) {
             .password = malloc(length)
         },
         .pop3_port = malloc(pop3_port_length),
-        .peep_port = malloc(peep_port_length)
+        .peep_port = malloc(peep_port_length),
+        .transform_program = NULL,
     };
     strncpy(config.peep_admin.username, default_peep_admin, length);
     strncpy(config.peep_admin.password, default_peep_admin, length);

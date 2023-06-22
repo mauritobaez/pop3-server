@@ -6,6 +6,7 @@
 #include <errno.h>
 #include <string.h>
 #include <fcntl.h>
+#include <sys/wait.h>
 
 #include "directories.h"
 #include "logger.h"
@@ -234,43 +235,53 @@ command_t *handle_user_command(command_t *command_state, buffer_t buffer, client
 
 command_t *handle_retr_write_command(command_t *command_state, buffer_t buffer, client_info_t *client_state)
 {
+    retr_state_t* state = (retr_state_t*)((command_state)->meta_data);
     if (command_state->answer == NULL)
     { // STARTUP
         command_state->answer = malloc(MAX_LINE + 1);
-        RETR_STATE(command_state)->multiline_state = 2;
-        RETR_STATE(command_state)->final_dot = false;
+        state->multiline_state = 2;
+        state->final_dot = false;
         strncpy(command_state->answer, RETR_OK_MSG, RETR_OK_MSG_LENGTH);
     }
-    if (!RETR_STATE(command_state)->greeting_done) //Poner el mensaje inicial
+    if (!state->greeting_done) //Poner el mensaje inicial
     {
         command_state->index += buffer_write_and_advance(buffer, command_state->answer + command_state->index, RETR_OK_MSG_LENGTH - command_state->index - 1);
         if (command_state->index >= RETR_OK_MSG_LENGTH-1)
         {
-            RETR_STATE(command_state)->greeting_done = true;
-            RETR_STATE(command_state)->finished_line = true;
+            state->greeting_done = true;
+            state->finished_line = true;
             command_state->index = 0;
         }
         return command_state;
     }
-    if(RETR_STATE(command_state)->emailfd == -1 && !RETR_STATE(command_state)->final_dot && command_state->index == 0){ //Termino de escribir entonces copio el ultimo \r\n . \r\n
-        strncpy(command_state->answer, (RETR_STATE(command_state)->multiline_state == 2) ? FINAL_MESSAGE_RETR : FINAL_MESSAGE_RETR_PADDED, MAX_LINE);
-        RETR_STATE(command_state)->final_dot = true;
+    if(state->emailfd == -1 && !state->final_dot && command_state->index == 0){ //Termino de escribir entonces copio el ultimo \r\n . \r\n
+        strncpy(command_state->answer, (state->multiline_state == 2) ? FINAL_MESSAGE_RETR : FINAL_MESSAGE_RETR_PADDED, MAX_LINE);
+        state->final_dot = true;
     }
     // if emailfd == -1, it has finished reading
-    if (RETR_STATE(command_state)->emailfd != -1 && RETR_STATE(command_state)->finished_line)
+    if (state->emailfd != -1 && state->finished_line)
     {
-        ssize_t nbytes = read(RETR_STATE(command_state)->emailfd, command_state->answer, MAX_LINE);
-        command_state->answer[nbytes] = '\0';
-        log(DEBUG, "Read %ld bytes from emailfd", nbytes);
-        if (nbytes == 0 || nbytes < MAX_LINE)
-        {
-            close(RETR_STATE(command_state)->emailfd);
-            RETR_STATE(command_state)->emailfd = -1;
-        }
-        else
-        {
-            RETR_STATE(command_state)->finished_line = false;
-            command_state->index = 0;
+        ssize_t nbytes = read(state->emailfd, command_state->answer, MAX_LINE);
+        if (nbytes >= 0) {
+            command_state->answer[nbytes] = '\0';
+            log(DEBUG, "Read %ld bytes from emailfd", nbytes);
+            if (nbytes == 0 || nbytes < MAX_LINE)
+            {
+                close(state->emailfd);
+                pclose(state->email_stream);
+                int status;
+                pid_t pid = waitpid(-1, &status, 0);
+                if (pid == -1) log(ERROR, "Error finishing process %s", strerror(errno));
+                state->emailfd = -1;
+            }
+            else
+            {
+                state->finished_line = false;
+                command_state->index = 0;
+            }
+        } else {
+            if (errno != EAGAIN) log(ERROR, "Read error %s", strerror(errno));
+            command_state->answer[0] = '\0';
         }
     }
     size_t remaining_bytes_to_write = strlen(command_state->answer) - command_state->index;
@@ -280,25 +291,25 @@ command_t *handle_retr_write_command(command_t *command_state, buffer_t buffer, 
     for (size_t i = 0; i < remaining_bytes_to_write && has_written; i += 1)
     {
         char written_character = *(command_state->answer + command_state->index + i);
-        if (!(RETR_STATE(command_state)->final_dot)) {
+        if (!(state->final_dot)) {
             if (written_character == '\r')
             {
-                RETR_STATE(command_state)->multiline_state = 1;
+                state->multiline_state = 1;
             }
-            else if (RETR_STATE(command_state)->multiline_state == 1 && written_character == '\n')
+            else if (state->multiline_state == 1 && written_character == '\n')
             {
-                RETR_STATE(command_state)->multiline_state = 2;
+                state->multiline_state = 2;
             }
-            else if (RETR_STATE(command_state)->multiline_state == 2 && written_character == '.')
+            else if (state->multiline_state == 2 && written_character == '.')
             {   
                 has_written = buffer_write_and_advance(buffer, ".", 1);
                 if(has_written){
-                    RETR_STATE(command_state)->multiline_state = 0;
+                    state->multiline_state = 0;
                 }
             }
             else
             {
-                RETR_STATE(command_state)->multiline_state = 0;
+                state->multiline_state = 0;
             }
         }
         has_written = buffer_write_and_advance(buffer, &written_character, 1);
@@ -307,10 +318,10 @@ command_t *handle_retr_write_command(command_t *command_state, buffer_t buffer, 
 
     if (written_bytes >= remaining_bytes_to_write)
     {
-        RETR_STATE(command_state)->finished_line = true;
+        state->finished_line = true;
         command_state->index = 0;
         // Me aseguro que se escriba lo ultimo
-        if(RETR_STATE(command_state)->emailfd == -1 && RETR_STATE(command_state)->final_dot){ 
+        if(state->emailfd == -1 && state->final_dot){ 
             free_command(command_state);
             return NULL;
         }
@@ -326,7 +337,8 @@ command_t *handle_retr_command(command_t *command_state, buffer_t buffer, client
 {
     pop3_client* pop3_state = client_state->pop3_client_info;
     command_t *command = calloc(1,sizeof(command_t));
-    if (RETR_STATE(command_state) == NULL || RETR_STATE(command_state)->emailfd == 0)
+    retr_state_t *retr_state = (retr_state_t *)command_state->meta_data;
+    if (retr_state == NULL || retr_state->emailfd == 0)
     {
         if (command_state->args[0] == NULL)
         {
@@ -348,17 +360,22 @@ command_t *handle_retr_command(command_t *command_state, buffer_t buffer, client
                 return handle_simple_command(command_state, buffer, RETR_ERR_FOUND_MSG);
             }
             //No deberia romperse porque ya se valido que el archivo exista cuando lo indexamos
-            int emailfd = open_email_file(pop3_state, email->filename);
+            FILE* filestream = open_email_file(pop3_state, email->filename);
+            int emailfd = fileno(filestream);
             int flags = fcntl(emailfd, F_GETFL, 0);
             fcntl(emailfd, F_SETFL, flags | O_NONBLOCK);
             command->answer = NULL;
-            command->meta_data = malloc(sizeof(retr_state_t));
-            RETR_STATE(command)->emailfd = emailfd;
+            retr_state_t *metadata = malloc(sizeof(retr_state_t));
+
+            metadata->emailfd = emailfd;
             command->index = 0;
-            RETR_STATE(command)->finished_line = false;
-            RETR_STATE(command)->greeting_done = false;
-            RETR_STATE(command)->multiline_state = 0;
-            RETR_STATE(command)->final_dot = false;
+            metadata->finished_line = false;
+            metadata->greeting_done = false;
+            metadata->multiline_state = 0;
+            metadata->final_dot = false;
+            metadata->email_stream = filestream;
+
+            command->meta_data = metadata;
             add_email_read();
             log(INFO, "User: %s retrieved email %s",client_state->pop3_client_info->selected_user->username, email->filename)
         }
@@ -437,9 +454,8 @@ command_t *handle_quit_command(command_t *command_state, buffer_t buffer, client
         int new_emails_count = client_state->emails_count;
         for(size_t i = 0; i < client_state->emails_count && !error; i++){
             if(client_state->emails[i].deleted){
-                char *user_maildir = client_state->user_maildir;
-                char *email_path = join_path(user_maildir, client_state->emails[i].filename);
-                if( remove(email_path) == -1){
+                char *email_path = client_state->emails[i].filename;
+                if(remove(email_path) == -1){
                     log(ERROR, "Error deleting email %s\n", email_path);
                     error=true;
                 }else{
@@ -448,7 +464,6 @@ command_t *handle_quit_command(command_t *command_state, buffer_t buffer, client
                     // deleted email metric
                     add_email_removed();
                 }
-                free(email_path);
             }
         }
         // Aca va la logica de eliminar emails cuando se termina la sesion
@@ -628,7 +643,17 @@ void free_pop3_client(pop3_client *client)
         free(client->emails[i].filename);
     }
     free(client->emails);
+    if (client->pending_command != NULL && client->pending_command->meta_data != NULL) {
+        retr_state_t* metadata = (retr_state_t*)(client->pending_command->meta_data);
+        if (metadata->emailfd != -1) {
+            close(metadata->emailfd);
+            pclose(metadata->email_stream);
+            int status;
+            waitpid(-1, &status, 0);
+        }
+    }
     free_command(client->pending_command);
+    
     free(client->user_maildir);
     free(client);
 }
@@ -636,6 +661,7 @@ void free_pop3_client(pop3_client *client)
 void free_client_pop3(int index)
 {
     remove_connection_metric();
+
     free_pop3_client(sockets[index].client_info.pop3_client_info);
 }
 
