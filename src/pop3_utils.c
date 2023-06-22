@@ -359,7 +359,6 @@ command_t *handle_retr_command(command_t *command_state, buffer_t buffer, client
                 free(command);
                 return handle_simple_command(command_state, buffer, RETR_ERR_FOUND_MSG);
             }
-            //No deberia romperse porque ya se valido que el archivo exista cuando lo indexamos
             FILE* filestream = open_email_file(pop3_state, email->filename);
             int emailfd = fileno(filestream);
             int flags = fcntl(emailfd, F_GETFL, 0);

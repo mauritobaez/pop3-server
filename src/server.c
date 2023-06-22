@@ -2,6 +2,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <strings.h>
+#include <unistd.h>
 
 #include "server.h"
 #include "directories.h"
@@ -16,7 +17,7 @@
 #define TOTAL_ARGUMENTS 6
 #define POP3_PORT "1110"
 #define PEEP_PORT "2110"
-
+#define DEFAULT_PEEP_ADMIN "root"
 
 server_metrics metrics;
 server_config global_config;
@@ -29,12 +30,12 @@ int handle_peep_port(int argc, char *arg[], server_config* config);
 int handle_transform_command(int argc, char *arg[], server_config* config);
 
 argument_t arguments[TOTAL_ARGUMENTS] = {
-    {.argument = "-u", .handler = handle_user},
-    {.argument = "-m", .handler = handle_mail},
-    {.argument = "--peep-admin", .handler = handle_peep_admin},
-    {.argument = "--pop3-port", .handler = handle_pop3_port},
-    {.argument = "--peep-port", .handler = handle_peep_port},
-    {.argument = "--transform", .handler = handle_transform_command}
+    {.argument = "--user", .handler = handle_user, .minified_argument = "-u"},
+    {.argument = "--mailbox", .handler = handle_mail, .minified_argument = "-m"},
+    {.argument = "--peep-admin", .handler = handle_peep_admin, .minified_argument = "-a"},
+    {.argument = "--pop3-port", .handler = handle_pop3_port, .minified_argument = "-p"},
+    {.argument = "--peep-port", .handler = handle_peep_port, .minified_argument = NULL},
+    {.argument = "--transform", .handler = handle_transform_command, .minified_argument = "-t"}
 };
 
 int handle_user(int argc, char *arg[], server_config* config) {
@@ -67,6 +68,9 @@ int handle_transform_command(int argc, char *arg[], server_config* config) {
     if (argc == 0) {
         log(FATAL, "No matching property for argument: %s\n", "--transform");
     }
+    if (access(arg[0], F_OK) != 0) {
+        log(FATAL, "Non existance for transform program: %s\n", arg[0]);
+    }
     size_t command_length = strlen(arg[0]) + 1;
     config->transform_program = malloc(command_length);
     strncpy(config->transform_program, arg[0], command_length);
@@ -89,12 +93,12 @@ int handle_mail(int argc, char *arg[], server_config* config) {
 
 int handle_peep_admin(int argc, char *arg[], server_config* config) {
     if (argc == 0) {
-        log(FATAL, "No matching property for argument: %s\n", "-a");
+        log(FATAL, "No matching property for argument: %s\n", "--peep-admin");
     }
     const char *delimiter = ":";
     char *token = strtok(arg[0], delimiter);
     if (token == NULL) {
-        log(FATAL, "Format for %s is <user>:<password>\n", "-a");
+        log(FATAL, "Format for %s is <user>:<password>\n", "--peep-admin");
     }
     user_t user;
     user.username = malloc(strlen(token) + 1);
@@ -102,12 +106,10 @@ int handle_peep_admin(int argc, char *arg[], server_config* config) {
     token = strtok(NULL, delimiter);
     if (token == NULL) {
         free(user.username);
-        log(FATAL, "Format for %s is <user>:<password>\n", "-a");
+        log(FATAL, "Format for %s is <user>:<password>\n", "--peep-admin");
     }
     user.password = malloc(strlen(token) + 1);
     strcpy(user.password, token);
-    free(config->peep_admin.username);
-    free(config->peep_admin.password);
     config->peep_admin.username = user.username;
     config->peep_admin.password = user.password;
     return 1;
@@ -120,7 +122,6 @@ int handle_pop3_port(int argc, char *arg[], server_config* config) {
     if (port < 0 || port > 65535) {
         log(FATAL, "Invalid port: %s\n", arg[0]);
     }
-    free(config->pop3_port);
     config->pop3_port = malloc(strlen(arg[0]) + 1);
     strcpy(config->pop3_port, arg[0]);
     return 1;
@@ -133,7 +134,6 @@ int handle_peep_port(int argc, char *arg[], server_config* config) {
     if (port < 0 || port > 65535) {
         log(FATAL, "Invalid port: %s\n", arg[0]);
     }
-    free(config->peep_port);
     config->peep_port = malloc(strlen(arg[0]) + 1);
     strcpy(config->peep_port, arg[0]);
     return 1;
@@ -146,39 +146,53 @@ server_config create_defaults(server_config config) {
             log(FATAL, "Error reading cwd: %s\n", strerror(errno));
         }
     }
+    if (config.peep_admin.password == NULL) {
+        config.peep_admin.password = malloc(sizeof(DEFAULT_PEEP_ADMIN));
+        strcpy(config.peep_admin.password, DEFAULT_PEEP_ADMIN);
+    }
+    if (config.peep_admin.username == NULL) {
+        config.peep_admin.username = malloc(sizeof(DEFAULT_PEEP_ADMIN));
+        strcpy(config.peep_admin.username, DEFAULT_PEEP_ADMIN);
+    }
+
+    if (config.pop3_port == NULL) {
+        config.pop3_port = malloc(sizeof(POP3_PORT));
+        strcpy(config.pop3_port, POP3_PORT);
+    }
+    if (config.peep_port == NULL) {
+        config.peep_port = malloc(sizeof(PEEP_PORT));
+        strcpy(config.peep_port, PEEP_PORT);        
+    }
     return config;
 }
 
 // De no utilizar --peep-admin, las credenciales serán root:root
 server_config get_server_config(int argc, char *argv[]) {
-    char* default_peep_admin = "root";
-    unsigned int length = strlen(default_peep_admin) + 1;
-    unsigned int pop3_port_length = strlen(POP3_PORT) + 1;
-    unsigned int peep_port_length = strlen(PEEP_PORT) + 1;
     server_config config = {
         .max_connections = MAX_CONNECTION_LIMIT,
         .timeout = 0,
         .users = create_queue(),
         .maildir = NULL,
         .peep_admin = (user_t) {
-            .username = malloc(length),
-            .password = malloc(length)
+            .username = NULL,
+            .password = NULL
         },
-        .pop3_port = malloc(pop3_port_length),
-        .peep_port = malloc(peep_port_length),
+        .pop3_port = NULL,
+        .peep_port = NULL,
         .transform_program = NULL,
     };
-    strncpy(config.peep_admin.username, default_peep_admin, length);
-    strncpy(config.peep_admin.password, default_peep_admin, length);
-    strncpy(config.pop3_port, POP3_PORT, pop3_port_length);
-    strncpy(config.peep_port, PEEP_PORT, peep_port_length);
-    // ignoro nombre de programa
     argv = argv + 1;
     argc -= 1;
     while (argc > 0) {
         bool found = false;
         for (int i = 0; i < TOTAL_ARGUMENTS && !found; i += 1) {
-            if ((found = strcmp(argv[0], arguments[i].argument) == 0)) {
+            if (
+                (found = strcmp(argv[0], arguments[i].argument) == 0 
+                || (
+                    arguments[i].minified_argument != NULL 
+                    && strcmp(argv[0], arguments[i].minified_argument) == 0)
+                    )
+                ) {
                 int arguments_consumed = arguments[i].handler(argc - 1, argv + 1, &config);
                 argc -= arguments_consumed;
                 argv += arguments_consumed;
@@ -204,6 +218,7 @@ void print_config(server_config config) {
         log(INFO, "MAILDIR: %s\n", config.maildir);
         log(INFO, "POP3-PORT: %s\n", config.pop3_port);
         log(INFO, "PEEP-PORT: %s\n", config.peep_port);
+        log(INFO, "PEEP ADMIN: %s:%s\n", config.peep_admin.username, config.peep_admin.password);
 }
 
 void free_server_config(server_config config) {

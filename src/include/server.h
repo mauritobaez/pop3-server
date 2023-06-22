@@ -43,6 +43,7 @@ typedef int(*handle_argument)(int argc, char *arg[], server_config* config);
 
 typedef struct argument_t {
     char *argument;
+    char *minified_argument;
     handle_argument handler;
 } argument_t;
 
