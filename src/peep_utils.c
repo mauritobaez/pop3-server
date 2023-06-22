@@ -286,18 +286,23 @@ command_t *handle_add_user_command(command_t *command_state, buffer_t buffer, cl
     }
     
     char* username = command_state->args[0];
-    if(check_user_exists(username)!=NULL)
-        RETURN_NEGATIVE_RESPONSE(command_state, buffer, 3);
-
     char* password = command_state->args[1];
-    user_t* new_user = malloc(sizeof(user_t));
-    new_user->username = malloc(strlen(username) + 1);
-    strcpy(new_user->username, username);
-    new_user->password = malloc(strlen(password) + 1);
-    strcpy(new_user->password, password);
-    new_user->locked = false;
-    new_user->removed = false;
-    enqueue(global_config.users, new_user);
+    user_t* user;
+    if((user=check_user_exists(username))!=NULL) {
+        if(user->removed==false) 
+            RETURN_NEGATIVE_RESPONSE(command_state, buffer, 3);
+        free(user->password);
+    } else {
+        user = malloc(sizeof(user_t));
+        user->username = malloc(strlen(username) + 1);
+        strcpy(user->username, username);
+        user->locked = false;
+        enqueue(global_config.users, user);
+    }
+
+    user->password = malloc(strlen(password) + 1);
+    strcpy(user->password, password);
+    user->removed = false;
 
     return handle_simple_command(command_state, buffer, OK);
 }
