@@ -52,7 +52,7 @@ command_t *handle_simple_command(command_t *command_state, buffer_t buffer, char
     command->index += written_bytes;
     return command;
 }
-
+//Funcion de liberacion del comando, libera los argumentos y el answer si es necesario
 void free_command(command_t *command)
 {
     if (command == NULL)

@@ -136,7 +136,8 @@ int recv_to_parser(int socket_index, struct parser *parser, size_t recv_buffer_s
     log(DEBUG, "Received %ld bytes from socket %d", received_bytes, socket->fd);
 
     for (int i = 0; i < received_bytes; i += 1)
-    {
+    {   //Se manda cada caracter que se tenga en el buffer de entrada al parser. 
+        //Y cuando se termina un comando lo guarda en la lista de eventos del parser
         if (parser_feed(parser, message[i])->finished)
         {
             finish_event_item(parser);

@@ -8,7 +8,7 @@
 #include "peep_responses.h"
 #include "queue.h"
 #include "directories.h"
-
+//Macro para hacer el return de una respuesta negativa con su codigo de error
 #define RETURN_NEGATIVE_RESPONSE(command_state, buffer, error_code)        \
     do                                                                     \
     {                                                                      \
@@ -17,8 +17,9 @@
         return handle_simple_command((command_state), (buffer), neg_resp); \
     } while (0)
 
+//Macro para hacer el return de una respuesta positiva(+)
 #define RETURN_POSITIVE_RESPONSE(command_state, buffer) return handle_simple_command((command_state), (buffer), OK)
-
+//Macro para hacer el return de una respuesta positiva con solo un entero
 #define RETURN_POSITIVE_RESPONSE_INTEGER(command_state, buffer, integer) \
     do                                                                   \
     {                                                                    \
@@ -47,7 +48,7 @@ command_t *handle_show_curr_logged_in_command(command_t *command_state, buffer_t
 command_t *handle_show_hist_connection_count_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
 command_t *handle_show_hist_logged_in_count_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
 command_t *handle_capa_command(command_t *command_state, buffer_t buffer, client_info_t *client_state);
-
+//Array de comandos validos y sus handlers
 command_info peep_commands[PEEP_COMMAND_COUNT] = {
     {.name = "a", .command_handler = (command_handler)&handle_authenticate_command, .type = C_AUTHENTICATE, .valid_states = AUTHENTICATION},
     {.name = "q", .command_handler = (command_handler)&handle_qquit_command, .type = C_QUIT, .valid_states = AUTHENTICATION | AUTHENTICATED},
@@ -68,7 +69,7 @@ command_info peep_commands[PEEP_COMMAND_COUNT] = {
     {.name = "hc?", .command_handler = (command_handler)&handle_show_hist_connection_count_command, .type = C_SHOW_HIST_CONNECTION_COUNT, .valid_states = AUTHENTICATED},
     {.name = "hu?", .command_handler = (command_handler)&handle_show_hist_logged_in_count_command, .type = C_SHOW_HIST_LOGGED_IN_COUNT, .valid_states = AUTHENTICATED},
     {.name = "cap?", .command_handler = (command_handler)&handle_capa_command, .type = C_CAPABILITIES, .valid_states = AUTHENTICATION | AUTHENTICATED}};
-
+//Funcion auxiliar para saber la cant de argumentos presents en el comando
 uint8_t get_arg_count(command_t *command_state)
 {
     if (command_state->args[0] == NULL)
@@ -78,7 +79,7 @@ uint8_t get_arg_count(command_t *command_state)
     else
         return 2;
 }
-
+//Funcion principal que se encarga de escribir y leer del socket, y de parsear los comandos llamando al handler correspondiente
 int handle_peep_client(void *index, bool can_read, bool can_write)
 {
     int i = *(int *)index;
@@ -86,20 +87,20 @@ int handle_peep_client(void *index, bool can_read, bool can_write)
     peep_client *peep_client_info = socket->client_info.peep_client_info;
 
     if (can_write)
-    {
+    {   //Si hay bytes para enviar, los enviamos hasta lo que nos de
         int remaining_bytes = send_from_socket_buffer(i);
         if (remaining_bytes == -1)
             return -1;
         if (remaining_bytes == -2)
             goto close_peep_client;
-
+        //Si no hay mas bytes para enviar, y el cliente esta cerrando la sesion, cerramos la sesion
         if (buffer_available_chars_count(socket->writing_buffer) == 0 && peep_client_info->closing)
         {
             log(DEBUG, "Socket %d - closing session\n", i);
             goto close_peep_client;
         }
 
-        // ahora que hicimos lugar en el buffer, intentamos resolver el comando que haya quedado pendiente
+        //Si no hay mas bytes para enviar, y hay un comando pendiente, lo ejecutamos
         if (peep_client_info->pending_command != NULL)
         {
             command_t *old_pending_command = peep_client_info->pending_command;
@@ -110,7 +111,7 @@ int handle_peep_client(void *index, bool can_read, bool can_write)
     }
 
     struct parser *parser = peep_client_info->parser_state;
-
+    //Si podemos leer, leemos y se lo pasamos al parser
     if (can_read && !peep_client_info->closing)
     {
         int ans = recv_to_parser(i, peep_client_info->parser_state, MAX_COMMAND_LENGTH);
@@ -121,7 +122,7 @@ int handle_peep_client(void *index, bool can_read, bool can_write)
     }
 
     if (peep_client_info->pending_command == NULL && !peep_client_info->closing)
-    {
+    {   //Si no habia un comando pendiente y el cliente no esta cerrando la sesion, agarramos el ultimo comando parseado y buscamos un match en el array
         struct parser_event *event = get_last_event(parser);
         if (event != NULL)
         {
@@ -129,7 +130,7 @@ int handle_peep_client(void *index, bool can_read, bool can_write)
             if (event->args[0] != NULL)
             {
                 for (int command_index = 0; command_index < PEEP_COMMAND_COUNT && !found_command; command_index++)
-                {
+                {   //Revisamos que el comando este en el estado correcto y que el nombre del comando sea correcto
                     if (((peep_commands[command_index].valid_states & peep_client_info->state) > 0) && strcmp(event->args[0], peep_commands[command_index].name) == 0)
                     {
                         found_command = true;
@@ -144,13 +145,14 @@ int handle_peep_client(void *index, bool can_read, bool can_write)
                             .meta_data = NULL};
 
                         log(DEBUG, "Command %s received with args %s and %s\n", event->args[0], event->args[1], event->args[2]);
-
+                        //Llamamos al handler del comando y si no termino se lo asignamos como comando pendiente
                         peep_client_info->pending_command = command_state.command_handler(&command_state, socket->writing_buffer, &(socket->client_info));
                         socket->try_write = true;
                         free_event(event, false);
                     }
                 }
             }
+            //Si no encontramos el comando, mandamos un comando desconocido
             if (!found_command)
             {
                 command_t command_state = {
@@ -175,7 +177,7 @@ int handle_peep_client(void *index, bool can_read, bool can_write)
 close_peep_client:
     return -1;
 }
-
+//Funcion que se encarga de aceptar una conexion de un cliente peep
 int accept_peep_connection(void *index, bool can_read, bool can_write)
 {
     if (can_read)
@@ -219,7 +221,7 @@ int accept_peep_connection(void *index, bool can_read, bool can_write)
     }
     return 0;
 }
-
+//Funcion que se encarga de liberar la memoria de un cliente peep
 void free_peep_client(int index)
 {
     peep_client *client = sockets[index].client_info.peep_client_info;
@@ -227,7 +229,7 @@ void free_peep_client(int index)
     free_command(client->pending_command);
     free(client);
 }
-
+//Funcion que se encarga de manejar un comando desconocido
 command_t *handle_unknown_command(command_t *command_state, buffer_t buffer, client_info_t *client_state)
 {
     RETURN_NEGATIVE_RESPONSE(command_state, buffer, 0);
@@ -273,7 +275,7 @@ command_t *handle_set_max_connections_command(command_t *command_state, buffer_t
     global_config.max_connections = new_max_connections;
     return handle_simple_command(command_state, buffer, OK);
 }
-
+//Funcion auxiliar que se encarga de ver si existe un usuario y lo retorna
 user_t *check_user_exists(char *username)
 {
     queue_t user_list = global_config.users;
