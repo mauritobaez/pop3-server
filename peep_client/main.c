@@ -31,7 +31,7 @@ int main(int argc, char* argv[]) {
 
     fgets(answer, 32, server);
 
-    printf("%s:)"CRLF, answer);
+    printf("Connected successfully to server through PEEP!\nSee available commands with 'help'\n");
     command_info* command = NULL;
     while(1){
         fgets(STDIN_BUFFER,STD_BUFFER_SIZE-1, stdin);
@@ -41,8 +41,8 @@ int main(int argc, char* argv[]) {
         }
         STDIN_BUFFER[index_stdin]='\0';
         command = parse_user_command(STDIN_BUFFER);
-    bool end = 0;
-    bool error = 0;
+        bool end = 0;
+        bool error = 0;
         if(command==NULL)
             continue;
         switch (command->type){
@@ -108,10 +108,10 @@ int main(int argc, char* argv[]) {
                 fprintf(server, "cap?\r\n");
                 break;
             case HELP:
-                printf("capa | quit | maildir | timeout | users | help | retrieved bytes/emails"
-                "| max connections | set maildir <path> | set timeout <value> | delete user <username>" 
-                "| current connections amount | current logged users | removed emails amount | add user <username> <password>" 
-                "| set max connections <value> | all time connection/logged amount \r\n");
+                printf("capa | quit | maildir | timeout | users | help | retrieved bytes | retrieved emails "
+                "| max connections | set maildir <path> | set timeout <value> | delete user <username> " 
+                "| current connections amount | current logged users | removed emails amount | add user <username> <password> " 
+                "| set max connections <value> | all time connection amount | all time logged amount\r\n");
                 free(command);
                 continue;
             case UNKNOWN:
