@@ -44,10 +44,6 @@ Argumentos posibles al hacer ./pop3d
 + `--peep-port <port>`  Establece el puerto en el que estará el socket pasivo de PEEP.
 + `--transform '<transformation>'` Establece qué transformación será utilizada.
 
---pop3-port", .handler = handle_pop3_port},
-    {.argument = "--peep-port", .handler = handle_peep_port},
-    {.argument = "--transform
-
 
 ### Cliente
 Corriendo ./peepclient, los argumentos disponibles son los siguientes:
