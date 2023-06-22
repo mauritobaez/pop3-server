@@ -12,7 +12,7 @@
     si terminas de escribir, sino deberias copiar al nuevo malloc lo necesario para seguir escribiendo en la siguiente llamada */
 command_t *handle_simple_command(command_t *command_state, buffer_t buffer, char *answer)
 {
-    command_t *command = calloc(1,sizeof(command_t));
+    command_t *command = calloc(1, sizeof(command_t));
     if (command == NULL)
         LOG_AND_RETURN(FATAL, "Error handling command", command);
     if (command_state->answer == NULL)
@@ -20,6 +20,7 @@ command_t *handle_simple_command(command_t *command_state, buffer_t buffer, char
         if (answer == NULL)
         {
             log(FATAL, "Unexpected error \n%s", "");
+            return NULL;
         }
         size_t length = strlen(answer);
         command->answer = malloc(length + 1);
@@ -61,7 +62,7 @@ void free_command(command_t *command)
     {
         free(command->answer);
     }
-    if(command->meta_data != NULL)
+    if (command->meta_data != NULL)
     {
         free(command->meta_data);
     }

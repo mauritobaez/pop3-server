@@ -15,7 +15,6 @@
 
 size_t count_files_in_dir(DIR *dirp);
 
-
 /*
 typedef struct email_file_info {
     char* filename;
@@ -23,20 +22,22 @@ typedef struct email_file_info {
 } email_file_info;
 */
 
-// receives: directory absolute path without '/' at the end and an int* 
-// -> 
+// receives: directory absolute path without '/' at the end and an int*
+// ->
 // returns: filename and size of files in said directory and the amount of emails
-email_metadata_t* get_file_info(const char* directory, size_t *email_count) {
-    //Abro el directorio en cuestión
-    DIR * dirp = opendir(directory); //debería quedar maildir/directory/ o con ./ al principio no me acuerdo
-    email_metadata_t * files = NULL;
+email_metadata_t *get_emails_at_directory(const char *directory, size_t *email_count)
+{
+    // Abro el directorio en cuestión
+    DIR *dirp = opendir(directory); // debería quedar maildir/directory/ o con ./ al principio no me acuerdo
+    email_metadata_t *files = NULL;
     log(DEBUG, "DIRP is NULL %d", dirp == NULL);
     *email_count = 0;
-    if(dirp != NULL) {
+    if (dirp != NULL)
+    {
         size_t total_files = count_files_in_dir(dirp);
         files = malloc(sizeof(email_metadata_t) * total_files);
         int index = 0;
-        struct dirent * curr; /*!= NULL*/
+        struct dirent *curr; /*!= NULL*/
         struct stat sb;
 
         int directory_length = strlen(directory);
@@ -44,12 +45,15 @@ email_metadata_t* get_file_info(const char* directory, size_t *email_count) {
         strncpy(path, directory, directory_length);
         path[directory_length] = '/';
         directory_length += 1;
-        
-        while((curr = readdir(dirp)) != NULL) {
-            if(!(strcmp(curr->d_name,"..") == 0 || strcmp(curr->d_name, ".") == 0)){
+
+        while ((curr = readdir(dirp)) != NULL)
+        {
+            if (!(strcmp(curr->d_name, "..") == 0 || strcmp(curr->d_name, ".") == 0))
+            {
                 strcpy(path + directory_length, curr->d_name);
                 stat(path, &sb);
-                if (S_ISREG(sb.st_mode)) {
+                if (S_ISREG(sb.st_mode))
+                {
                     files[index].octets = sb.st_size;
                     files[index].filename = malloc(directory_length + strlen(curr->d_name) + 2);
                     files[index].deleted = false;
@@ -59,29 +63,35 @@ email_metadata_t* get_file_info(const char* directory, size_t *email_count) {
                 }
             }
         }
-        
+
         closedir(dirp);
     }
     return files;
 }
 
-FILE* open_email_file(pop3_client* client, char *filename) {
+FILE *open_email_file(pop3_client *client, char *filename)
+{
     char command_string[1024];
     strcpy(command_string, "cat ");
     strcat(command_string, filename);
-    if (global_config.transform_program != NULL) {
+    if (global_config.transform_program != NULL)
+    {
         strcat(command_string, "| ");
         strcat(command_string, global_config.transform_program);
+        strcat(command_string, " 2> /dev/null");
     }
-    FILE* stream = popen(command_string, "r");
+    FILE *stream = popen(command_string, "r");
     return stream;
 }
 
-size_t count_files_in_dir(DIR *dirp) {
+size_t count_files_in_dir(DIR *dirp)
+{
     size_t total = 0;
     struct dirent *curr;
-    while ((curr = readdir(dirp)) != NULL) {
-        if (!(strcmp(curr->d_name, "..") == 0 || strcmp(curr->d_name, ".") == 0)) {
+    while ((curr = readdir(dirp)) != NULL)
+    {
+        if (!(strcmp(curr->d_name, "..") == 0 || strcmp(curr->d_name, ".") == 0))
+        {
             total += 1;
         }
     }
@@ -90,8 +100,8 @@ size_t count_files_in_dir(DIR *dirp) {
     return total;
 }
 
-
-char *join_path(const char *dir1, const char *dir2) {
+char *join_path(const char *dir1, const char *dir2)
+{
     int dir1_length = strlen(dir1);
     int dir2_length = strlen(dir2);
 
@@ -102,9 +112,11 @@ char *join_path(const char *dir1, const char *dir2) {
     return total;
 }
 
-bool path_is_directory(char* path) {
+bool path_is_directory(char *path)
+{
     DIR *dir = opendir(path);
-    if (dir != NULL) {
+    if (dir != NULL)
+    {
         closedir(dir);
         return 1;
     }

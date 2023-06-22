@@ -17,7 +17,7 @@
 
 #include <unistd.h>
 #include <sys/types.h>
-#include <sys/socket.h>  
+#include <sys/socket.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 
@@ -29,13 +29,14 @@
 socket_handler sockets[MAX_SOCKETS] = {0};
 unsigned int current_socket_count = PASSIVE_SOCKET_COUNT;
 
-
+// Creo un socket pasivo TCP que acepta tanto IPv6 como IPv4
 int setup_passive_socket(char *socket_num)
 {
     unsigned port;
     char *end = 0;
     const long sl = strtol(socket_num, &end, 10);
-    if (end == socket_num || '\0' != *end || ((LONG_MIN == sl || LONG_MAX == sl) && ERANGE == errno) || sl < 0 || sl >USHRT_MAX) {
+    if (end == socket_num || '\0' != *end || ((LONG_MIN == sl || LONG_MAX == sl) && ERANGE == errno) || sl < 0 || sl > USHRT_MAX)
+    {
         log(FATAL, "invalid socket %s\n", socket_num);
     }
     port = sl;
@@ -45,7 +46,6 @@ int setup_passive_socket(char *socket_num)
     addr.sin6_family = AF_INET6;
     addr.sin6_addr = in6addr_any;
     addr.sin6_port = htons(port);
-
 
     int serv_sock = socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);
 
@@ -62,7 +62,7 @@ int setup_passive_socket(char *socket_num)
     }
 
     log(DEBUG, "debug servs_sock %d\n", serv_sock);
-    if (bind(serv_sock, (struct sockaddr*) &addr, sizeof(addr)) < 0)
+    if (bind(serv_sock, (struct sockaddr *)&addr, sizeof(addr)) < 0)
     {
         log(FATAL, "bind failed %s\n", strerror(errno));
         goto error;
@@ -80,7 +80,9 @@ error:
     return -1;
 }
 
-int send_from_socket_buffer(int socket_index) {
+// Intento un send a partir del contenido en writing-buffer
+int send_from_socket_buffer(int socket_index)
+{
 
     socket_handler *socket = &sockets[socket_index];
     size_t bytes_to_read = buffer_available_chars_count(socket->writing_buffer);
@@ -109,8 +111,10 @@ int send_from_socket_buffer(int socket_index) {
     return sent_bytes;
 }
 
-int recv_to_parser(int socket_index, struct parser* parser, size_t recv_buffer_size) {
-    socket_handler* socket = &sockets[socket_index];
+// otorga lo recibido del socket al parser.
+int recv_to_parser(int socket_index, struct parser *parser, size_t recv_buffer_size)
+{
+    socket_handler *socket = &sockets[socket_index];
     char *message = malloc(sizeof(char) * recv_buffer_size);
     if (message == NULL)
         return -1;
@@ -142,7 +146,8 @@ int recv_to_parser(int socket_index, struct parser* parser, size_t recv_buffer_s
     return received_bytes;
 }
 
-socket_handler* get_socket_handler_with_fd(int fd) {
+socket_handler *get_socket_handler_with_fd(int fd)
+{
     for (int i = 0; i < MAX_SOCKETS; i += 1)
     {
         if (sockets[i].fd == fd)
@@ -153,23 +158,27 @@ socket_handler* get_socket_handler_with_fd(int fd) {
     log(FATAL, "Socket %d not found\n", fd);
 }
 
-socket_handler* get_socket_handler_at_index(unsigned int index) {
-    if(index >= MAX_SOCKETS)
+socket_handler *get_socket_handler_at_index(unsigned int index)
+{
+    if (index >= MAX_SOCKETS)
         return NULL;
     return &sockets[index];
 }
 
-void free_client_socket(int socket) {
+// Libera la data del cliente y despues libera informacion del socket.
+void free_client_socket(int socket)
+{
     log(DEBUG, "Freeing socket number %d\n", socket);
     for (int i = 0; i < MAX_SOCKETS; i += 1)
     {
         if (sockets[i].occupied && sockets[i].fd == socket)
-        {   
-            if(!sockets[i].passive){
+        {
+            if (!sockets[i].passive)
+            {
                 sockets[i].free_client(i);
             }
             sockets[i].occupied = false;
-            if(sockets[i].writing_buffer != NULL)
+            if (sockets[i].writing_buffer != NULL)
                 buffer_free(sockets[i].writing_buffer);
             current_socket_count -= 1;
             break;
@@ -179,6 +188,7 @@ void free_client_socket(int socket) {
     log(DEBUG, "closing socket %d %d %s", socket, ans, strerror(errno));
 }
 
-void log_socket(socket_handler socket) {
+void log_socket(socket_handler socket)
+{
     log(DEBUG, "socket: %d, occupied: %d, try_read: %d, try_write: %d", socket.fd, socket.occupied, socket.try_read, socket.try_write);
 }
