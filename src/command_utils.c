@@ -20,6 +20,7 @@ command_t *handle_simple_command(command_t *command_state, buffer_t buffer, char
         if (answer == NULL)
         {
             log(FATAL, "Unexpected error \n%s", "");
+            free(command);
             return NULL;
         }
         size_t length = strlen(answer);

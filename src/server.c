@@ -39,6 +39,7 @@ int handle_user(int argc, char *arg[], server_config *config)
     if (argc == 0)
     {
         log(FATAL, "No matching property for argument: %s\n", "-u");
+        return -1;
     }
     const char *delimiter = ":";
     char *rest = arg[0];
@@ -46,6 +47,7 @@ int handle_user(int argc, char *arg[], server_config *config)
     if (token == NULL)
     {
         log(FATAL, "Format for %s is <user>:<password>\n", "-u");
+        return -1;
     }
     user_t *user = malloc(sizeof(user_t));
     user->username = malloc(strlen(token) + 1);
@@ -56,6 +58,7 @@ int handle_user(int argc, char *arg[], server_config *config)
         free(user->username);
         free(user);
         log(FATAL, "Format for %s is <user>:<password>\n", "-u");
+        return -1;
     }
     user->password = malloc(strlen(token) + 1);
     strcpy(user->password, token);
@@ -100,6 +103,7 @@ int handle_peep_admin(int argc, char *arg[], server_config *config)
     if (argc == 0)
     {
         log(FATAL, "No matching property for argument: %s\n", "--peep-admin");
+        return -1;
     }
     const char *delimiter = ":";
     char *rest = arg[0];
@@ -107,6 +111,7 @@ int handle_peep_admin(int argc, char *arg[], server_config *config)
     if (token == NULL)
     {
         log(FATAL, "Format for %s is <user>:<password>\n", "--peep-admin");
+        return -1;
     }
     user_t user;
     user.username = malloc(strlen(token) + 1);
@@ -116,6 +121,7 @@ int handle_peep_admin(int argc, char *arg[], server_config *config)
     {
         free(user.username);
         log(FATAL, "Format for %s is <user>:<password>\n", "--peep-admin");
+        return -1;
     }
     user.password = malloc(strlen(token) + 1);
     strcpy(user.password, token);
@@ -214,8 +220,8 @@ server_config get_server_config(int argc, char *argv[])
         bool found = false;
         for (int i = 0; i < TOTAL_ARGUMENTS && !found; i += 1)
         {
-            if (
-                (found = (strcmp(argv[0], arguments[i].argument)) == 0 || (arguments[i].minified_argument != NULL && strcmp(argv[0], arguments[i].minified_argument) == 0)))
+            found = strcmp(argv[0], arguments[i].argument) == 0 || (arguments[i].minified_argument != NULL && strcmp(argv[0], arguments[i].minified_argument) == 0);
+            if (found)
             {
                 int arguments_consumed = arguments[i].handler(argc - 1, argv + 1, &config);
                 argc -= arguments_consumed;

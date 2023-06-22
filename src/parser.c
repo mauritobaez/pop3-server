@@ -53,10 +53,10 @@ parser_init(struct parser_definition *def)
     return ret;
 }
 
-void parser_reset(struct parser *p)
-{
-    p->state = p->def->start_state;
-}
+// void parser_reset(struct parser *p)
+// {
+//     p->state = p->def->start_state;
+// }
 
 struct parser_event *
 parser_feed(struct parser *p, const uint8_t c)

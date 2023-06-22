@@ -47,7 +47,8 @@ client_config get_client_config(int argc, char *argv[])
         bool found = false;
         for (int i = 0; i < TOTAL_ARGUMENTS && !found; i += 1)
         {
-            if ((found = strcmp(argv[0], arguments[i].argument)) == 0)
+            found = strcmp(argv[0], arguments[i].argument) == 0;
+            if (found)
             {
                 config.values[arguments[i].config] = argv[1];
             }

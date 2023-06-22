@@ -146,25 +146,6 @@ int recv_to_parser(int socket_index, struct parser *parser, size_t recv_buffer_s
     return received_bytes;
 }
 
-socket_handler *get_socket_handler_with_fd(int fd)
-{
-    for (int i = 0; i < MAX_SOCKETS; i += 1)
-    {
-        if (sockets[i].fd == fd)
-        {
-            return &sockets[i];
-        }
-    }
-    log(FATAL, "Socket %d not found\n", fd);
-}
-
-socket_handler *get_socket_handler_at_index(unsigned int index)
-{
-    if (index >= MAX_SOCKETS)
-        return NULL;
-    return &sockets[index];
-}
-
 // Libera la data del cliente y despues libera informacion del socket.
 void free_client_socket(int socket)
 {

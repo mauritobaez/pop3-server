@@ -1,4 +1,4 @@
-#ifndef PARSER_H_00180a6350a1fbe79f133adf0a96eb6685c242b6   // estaría bueno cambiar el texto
+#ifndef PARSER_H_00180a6350a1fbe79f133adf0a96eb6685c242b6 // estaría bueno cambiar el texto
 #define PARSER_H_00180a6350a1fbe79f133adf0a96eb6685c242b6
 
 /**
@@ -15,7 +15,8 @@
 
 #define STATES_COUNT 5
 
-enum parser_states {
+enum parser_states
+{
     MAIN_COMMAND,
     FIRST_ARGUMENT,
     SECOND_ARGUMENT,
@@ -29,7 +30,7 @@ enum parser_states {
  */
 struct parser_event
 {
-    char* args[3];
+    char *args[3];
     uint8_t finished;
     uint16_t index;
 
@@ -46,7 +47,6 @@ struct parser_state_transition
     unsigned dest;
     /** acción 1 que se ejecuta cuando la condición es verdadera. requerida. */
     void (*act1)(struct parser_event *ret, const uint8_t c);
-
 };
 
 /** predicado para utilizar en `when' que retorna siempre true */
@@ -77,7 +77,7 @@ parser_init(struct parser_definition *def);
 void parser_destroy(struct parser *p);
 
 /** permite resetear el parser al estado inicial */
-void parser_reset(struct parser *p);
+// void parser_reset(struct parser *p);
 
 /**
  * el usuario alimenta el parser con un caracter, y el parser retorna un evento
@@ -88,14 +88,13 @@ struct parser_event *
 parser_feed(struct parser *p, const uint8_t c);
 
 // hay que llamarlo cuando finaliza
-void finish_event_item(struct parser * p);
+void finish_event_item(struct parser *p);
 
-struct parser_event * get_event_list(struct parser * p);
+struct parser_event *get_event_list(struct parser *p);
 
-struct parser_event * get_last_event(struct parser * p);
+struct parser_event *get_last_event(struct parser *p);
 
-//hace free de los nodos event, pero no de los argumentos
-void free_event_list(struct parser * p);
+// hace free de los nodos event, pero no de los argumentos
+void free_event_list(struct parser *p);
 
 #endif
-

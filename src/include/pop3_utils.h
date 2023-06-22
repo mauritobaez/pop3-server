@@ -78,5 +78,4 @@ void free_client_pop3(int index);
 // devuelve NULL si no hay email en el indice adecuado o si esta borrado
 email_metadata_t *get_email_at_index(pop3_client *state, size_t index);
 
-void log_emails(email_metadata_t *emails, size_t c);
 #endif
