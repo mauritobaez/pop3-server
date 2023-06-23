@@ -555,7 +555,7 @@ command_t *handle_listings_command(command_t *command_state, buffer_t buffer, cl
             if (metadata->listing_shown == pop3_state->emails_count) {
                 snprintf(command_state->answer, MAX_LISTING_SIZE, "%s", SEPARATOR);
                 metadata->finish = true;
-            } 
+            }
             for (size_t i = metadata->listing_shown; i < pop3_state->emails_count; i += 1)
             {
                 if (!pop3_state->emails[metadata->listing_shown].deleted)
@@ -564,6 +564,9 @@ command_t *handle_listings_command(command_t *command_state, buffer_t buffer, cl
                     metadata->listing_shown += 1;
                     break;
                 } else {
+                    if (metadata->listing_shown == (pop3_state->emails_count - 1)) {
+                        command_state->answer[0] = '\0';
+                    }
                     metadata->listing_shown += 1;
                 }
             }
