@@ -104,7 +104,7 @@ int handle_mail(int argc, char *arg[], server_config *config)
     }
     if (!path_is_directory(arg[0]))
     {
-        log(FATAL, "Not a valid path: %s\n", "-m");
+        log(FATAL, "Not a valid path: %s\n", arg[0]);
     }
     size_t maildir_length = strlen(arg[0]);
     config->maildir = malloc(maildir_length + 1);
