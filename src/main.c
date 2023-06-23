@@ -17,6 +17,7 @@ static bool done = false;
 static void sigchild_handler(const int signal)
 {
     // limpia hijos ya terminados
+    log(INFO, "Child finished %d", signal);
     int status;
     int pid = waitpid(-1, &status, 0);
     if (pid == -1)
