@@ -30,6 +30,12 @@ function addUsers(users) {
     });
 }
 
+function sleeper(ms) {
+    return function(x) {
+        return new Promise(resolve => setTimeout(() => resolve(x), ms));
+    };
+}
+
 function parseNanoToMSeconds(hrtime) {
     var seconds = (hrtime[0] + (hrtime[1] / 1e6));
     return seconds;
@@ -46,9 +52,11 @@ async function getEmail(index) {
 
     await pop3.connect();
     finished += 1;
+    // await sleeper(5 * 1000)();
     await pop3.command('USER', index);
     await pop3.command('PASS', index);
     await pop3.command('RETR', 1);
+    
     await pop3.command('QUIT');
     const seconds = parseNanoToMSeconds(process.hrtime(start));
     totaltime += seconds;
@@ -70,7 +78,7 @@ async function start() {
             emails.push(getEmail(i));
         }, i * 5);
     }
-    const seconds = await Promise.all(emails);
+    await Promise.all(emails);
 }
 
 start();
