@@ -135,42 +135,40 @@ int handle_server_response(FILE *server_fd, bool last_command_was_multiline)
                 fprintf(stdout, OK_RESPONSE CRLF);
                 return 0;
             }
-            char *lines = malloc(STD_BUFFER_SIZE * lines_to_read);
             int response_offset = 0;
             while (response_offset < bytes_read_from_server && first_line[response_offset] != '\n')
             {
                 response_offset++;
             }
             response_offset++;
-            strncpy(lines, first_line + response_offset, bytes_read_from_server);
-            int lines_offset = bytes_read_from_server - response_offset;
-            int lines_obtained_in_first_read = 0;
-            while (response_offset < bytes_read_from_server)
-            {
-                if (first_line[response_offset - 1] == '\r' && first_line[response_offset] == '\n')
-                {
-                    lines_obtained_in_first_read++;
+            int first_line_offset = response_offset;
+            int lines_obtained = 0;
+            fprintf(stdout, OK_RESPONSE" lines: %d" CRLF, lines_to_read);
+            bool cr_flag=false;
+            while(lines_obtained < lines_to_read){
+                while (response_offset < bytes_read_from_server){
+                    if (cr_flag && first_line[response_offset] == '\n')
+                    {
+                        lines_obtained++;
+                    }
+                    cr_flag = first_line[response_offset] == '\r';
+                    response_offset++;
                 }
-                response_offset++;
-            }
-            if (lines_obtained_in_first_read == lines_to_read)
-            {
-                lines[lines_offset] = '\0';
-                fprintf(stdout, OK_RESPONSE CRLF "%s", lines);
-                free(lines);
-                return 0;
-            }
-            else
-            {
-                bytes_read_from_server = read(fileno(server_fd), lines + lines_offset, STD_BUFFER_SIZE * lines_to_read);
-                if (bytes_read_from_server == EOF)
-                {
-                    free(lines);
-                    return -1;
+                response_offset = 0;
+                fprintf(stdout,"%s",first_line+first_line_offset);
+                first_line_offset = 0;
+                if(lines_obtained != lines_to_read){
+                    bytes_read_from_server = read(fileno(server_fd), first_line, STD_BUFFER_SIZE);
+                    if (bytes_read_from_server == EOF)
+                    {
+                        return -1;
+                    }
+                    first_line[bytes_read_from_server] = '\0';
+                }else{
+                    return 0;
                 }
-                lines[lines_offset + bytes_read_from_server] = '\0';
-                fprintf(stdout, OK_RESPONSE CRLF "%s", lines);
             }
+        
         }
     }
     else
