@@ -7,15 +7,11 @@
 #include <netdb.h>
 #include <string.h>
 #include <errno.h>
+#include <fcntl.h>
 
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
 #include <limits.h>
-#include <errno.h>
 #include <signal.h>
 
-#include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -72,7 +68,8 @@ int setup_passive_socket(char *socket_num)
         log(FATAL, "listen failed %s\n", strerror(errno));
         goto error;
     }
-
+    int flags = fcntl(serv_sock, F_GETFL);
+    fcntl(serv_sock, F_SETFL, flags | O_NONBLOCK);
     return serv_sock;
 
 error:
@@ -111,6 +108,16 @@ int send_from_socket_buffer(int socket_index)
     return sent_bytes;
 }
 
+// La llamada a este tiene que ser precedida por una aseguración de que hay suficientes opciones de conexiones.
+socket_handler* find_next_free_socket() {
+    for (int i = 0; i < MAX_SOCKETS; i += 1) {
+        if (!sockets[i].occupied) {
+            return &sockets[i];
+        }
+    }
+    return NULL;
+}
+
 // otorga lo recibido del socket al parser.
 int recv_to_parser(int socket_index, struct parser *parser, size_t recv_buffer_size)
 {
@@ -128,7 +135,7 @@ int recv_to_parser(int socket_index, struct parser *parser, size_t recv_buffer_s
         else
         {
             char error_log[ERROR_LOG_LENGTH] = {0};
-            snprintf(error_log, ERROR_LOG_LENGTH, "Socket %d - connection lost\n", socket_index);
+            snprintf(error_log, ERROR_LOG_LENGTH, "Socket %d - connection lost\n", socket->fd);
             LOG_AND_RETURN(INFO, error_log, -2);
         }
     }

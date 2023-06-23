@@ -142,7 +142,9 @@ int handle_peep_client(void *index, bool can_read, bool can_write)
                             .answer = NULL,
                             .answer_alloc = false,
                             .index = 0,
-                            .meta_data = NULL};
+                            .meta_data = NULL,
+                            .free_metadata = NULL,
+                            };
 
                         log(DEBUG, "Command %s received with args %s and %s\n", event->args[0], event->args[1], event->args[2]);
                         //Llamamos al handler del comando y si no termino se lo asignamos como comando pendiente
@@ -164,6 +166,7 @@ int handle_peep_client(void *index, bool can_read, bool can_write)
                     .answer_alloc = false,
                     .index = 0,
                     .meta_data = NULL,
+                    .free_metadata = NULL,
                 };
                 log(DEBUG, "Unknown command %s received\n", event->args[0]);
                 peep_client_info->pending_command = command_state.command_handler(&command_state, socket->writing_buffer, &(socket->client_info));
@@ -195,29 +198,23 @@ int accept_peep_connection(void *index, bool can_read, bool can_write)
             LOG_AND_RETURN(ERROR, "Error accepting peep connection", 0);
         }
 
-        for (int i = 0; i < MAX_SOCKETS; i += 1)
-        {
-            if (!sockets[i].occupied)
-            {
-                log(DEBUG, "accepted client socket: %d\n", i);
-                sockets[i].fd = client_socket;
-                sockets[i].occupied = true;
-                sockets[i].handler = (int (*)(void *, bool, bool)) & handle_peep_client;
-                sockets[i].try_read = true;
-                sockets[i].try_write = false;
-                sockets[i].free_client = &free_peep_client;
-                sockets[i].client_info.peep_client_info = malloc(sizeof(peep_client));
-                sockets[i].client_info.peep_client_info->state = AUTHENTICATION;
-                sockets[i].client_info.peep_client_info->pending_command = NULL;
-                sockets[i].client_info.peep_client_info->parser_state = set_up_parser();
-                sockets[i].client_info.peep_client_info->closing = false;
-                sockets[i].writing_buffer = buffer_init(PEEP_WRITING_BUFFER_SIZE);
-                sockets[i].last_interaction = 0;
-                sockets[i].passive = false;
-                current_socket_count += 1;
-                return 1;
-            }
-        }
+        socket_handler *free_socket = find_next_free_socket();
+        free_socket->fd = client_socket;
+        free_socket->occupied = true;
+        free_socket->handler = (int (*)(void *, bool, bool)) & handle_peep_client;
+        free_socket->try_read = true;
+        free_socket->try_write = false;
+        free_socket->free_client = &free_peep_client;
+        free_socket->client_info.peep_client_info = malloc(sizeof(peep_client));
+        free_socket->client_info.peep_client_info->state = AUTHENTICATION;
+        free_socket->client_info.peep_client_info->pending_command = NULL;
+        free_socket->client_info.peep_client_info->parser_state = set_up_parser();
+        free_socket->client_info.peep_client_info->closing = false;
+        free_socket->writing_buffer = buffer_init(PEEP_WRITING_BUFFER_SIZE);
+        free_socket->last_interaction = 0;
+        free_socket->passive = false;
+        current_socket_count += 1;
+        return 1;
     }
     return 0;
 }

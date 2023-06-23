@@ -30,9 +30,9 @@ argument_t arguments[TOTAL_ARGUMENTS] = {
     {.argument = "--mailbox", .handler = handle_mail, .minified_argument = "-m"},
     {.argument = "--peep-admin", .handler = handle_peep_admin, .minified_argument = "-a"},
     {.argument = "--pop3-port", .handler = handle_pop3_port, .minified_argument = "-p"},
-    {.argument = "--peep-port", .handler = handle_peep_port, .minified_argument = NULL},
+    {.argument = "--peep-port", .handler = handle_peep_port, .minified_argument = "-P"},
     {.argument = "--transform", .handler = handle_transform_command, .minified_argument = "-t"},
-    {.argument = "--timeout", .handler = handle_timeout, .minified_argument = NULL},
+    {.argument = "--timeout", .handler = handle_timeout, .minified_argument = "-T"},
 };
 
 // Acepta multiples llamados a --user

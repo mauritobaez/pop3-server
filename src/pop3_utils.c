@@ -159,50 +159,52 @@ int accept_pop3_connection(void *index, bool can_read, bool can_write)
 
         struct sockaddr_storage client_addr;
         socklen_t client_addr_len = sizeof(client_addr);
-
         int client_socket = accept(socket_state->fd, (struct sockaddr *)&client_addr, &client_addr_len);
+        if (client_socket == -1) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                return 0;
+            }
+            LOG_AND_RETURN(ERROR, "Error accepting pop3 connection", -1);
+        }
 
+        log(INFO, "Socket %d - accepting pop3 connection\n", client_socket);
         if (client_socket < 0)
         {
             LOG_AND_RETURN(ERROR, "Error accepting pop3 connection", 0);
         }
+        socket_state->try_read = true;
         //Busca un socket en el array de tal forma que este desocupado y lo ocupa con todo lo necesario para que funcione el cliente de pop3
-        for (int i = 0; i < MAX_SOCKETS; i += 1)
-        {
-            if (!sockets[i].occupied)
-            {
-                log(DEBUG, "accepted client socket: %d\n", i);
-                sockets[i].fd = client_socket;
-                sockets[i].occupied = true;
-                sockets[i].handler = (int (*)(void *, bool, bool)) & handle_pop3_client;
-                sockets[i].try_read = true;
-                sockets[i].free_client = &free_client_pop3;
-                sockets[i].client_info.pop3_client_info = calloc(1, sizeof(pop3_client));
-                sockets[i].client_info.pop3_client_info->current_state = AUTH_PRE_USER;
-                sockets[i].client_info.pop3_client_info->parser_state = set_up_parser();
-                sockets[i].client_info.pop3_client_info->closing = false;
-                sockets[i].client_info.pop3_client_info->selected_user = NULL;
-                sockets[i].writing_buffer = buffer_init(POP3_WRITING_BUFFER_SIZE);
-                sockets[i].last_interaction = time(NULL);
-                sockets[i].passive = false;
-                current_socket_count += 1;
-                add_connection_metric();
-                // GREETING
-                command_t greeting_state = {
-                    .type = GREETING,
-                    .command_handler = (command_handler)&handle_greeting_command,
-                    .args[0] = NULL,
-                    .args[1] = NULL,
-                    .answer = NULL,
-                    .answer_alloc = false,
-                    .index = 0,
-                    .meta_data = NULL};
+        socket_handler *free_socket = find_next_free_socket();
 
-                sockets[i].client_info.pop3_client_info->pending_command = handle_greeting_command(&greeting_state, sockets[i].writing_buffer, &(sockets[i].client_info));
-                sockets[i].try_write = true; //Se encola el primer comando que es el greeting command
-                return 1;
-            }
-        }
+        free_socket->fd = client_socket;
+        free_socket->occupied = true;
+        free_socket->handler = (int (*)(void *, bool, bool)) & handle_pop3_client;
+        free_socket->try_read = true;
+        free_socket->free_client = &free_client_pop3;
+        free_socket->client_info.pop3_client_info = calloc(1, sizeof(pop3_client));
+        free_socket->client_info.pop3_client_info->current_state = AUTH_PRE_USER;
+        free_socket->client_info.pop3_client_info->parser_state = set_up_parser();
+        free_socket->client_info.pop3_client_info->closing = false;
+        free_socket->client_info.pop3_client_info->selected_user = NULL;
+        free_socket->writing_buffer = buffer_init(POP3_WRITING_BUFFER_SIZE);
+        free_socket->last_interaction = time(NULL);
+        free_socket->passive = false;
+        current_socket_count += 1;
+        add_connection_metric();
+        // GREETING
+        command_t greeting_state = {
+            .type = GREETING,
+            .command_handler = (command_handler)&handle_greeting_command,
+            .args[0] = NULL,
+            .args[1] = NULL,
+            .answer = NULL,
+            .answer_alloc = false,
+            .index = 0,
+            .meta_data = NULL};
+
+        free_socket->client_info.pop3_client_info->pending_command = handle_greeting_command(&greeting_state, free_socket->writing_buffer, &(free_socket->client_info));
+        free_socket->try_write = true; //Se encola el primer comando que es el greeting command
+        return 1;
     }
     return 0;
 }
@@ -395,6 +397,7 @@ command_t *handle_retr_command(command_t *command_state, buffer_t buffer, client
         command->index = command_state->index;
         command->answer = command_state->answer;
         command->meta_data = command_state->meta_data;
+        command->free_metadata = command_state->free_metadata;
     }
     command->args[0] = command_state->args[0];
     command->args[1] = command_state->args[1];
@@ -739,10 +742,8 @@ void free_retr_state(retr_state_t *metadata)
         close(metadata->emailfd);
         pclose(metadata->email_stream);
     }
-    free(metadata);
 }
 
 void free_list_state(list_state_t *metadata)
 {
-    free(metadata);
 }

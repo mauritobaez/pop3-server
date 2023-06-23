@@ -14,7 +14,6 @@ function addUsers(users) {
         for (let i = 0; i < users; i += 1) {
             client.send(`u+ ${i} ${i}\r\n`, () => {
                 total.count += 1;
-                console.log(total.count);
                 if (total.count === users) {
                     client.send('q\r\n', () => {
                         client.close();
@@ -65,7 +64,7 @@ async function start() {
     for (let i = 0; i < connections; i += 1) {
         setTimeout(() => {
             emails.push(getEmail(i));
-        }, i * 3);
+        }, i * 4);
     }
     const seconds = await Promise.all(emails);
 }

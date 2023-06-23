@@ -15,6 +15,12 @@
 static bool done = false;
 
 
+static void sigchild_handler(const int signal)
+{
+    int status;
+    waitpid(-1, &status, WNOHANG);
+}
+
 static void
 sigterm_handler(const int signal)
 {
@@ -37,6 +43,8 @@ int main(int argc, char *argv[])
     // Signals
     signal(SIGTERM, sigterm_handler);
     signal(SIGINT, sigterm_handler);
+    signal(SIGCHLD, sigchild_handler);
+
     // signal(SIGCHLD, sigchild_handler);
 
     // Setupeamos los handlers de sockets pasivos.

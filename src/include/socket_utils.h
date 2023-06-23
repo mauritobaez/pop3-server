@@ -15,5 +15,6 @@ int send_from_socket_buffer(int socket_index);
 int recv_to_parser(int socket_index, struct parser *parser, size_t recv_buffer_size);
 void free_client_socket(int socket);
 void log_socket(socket_handler socket);
+socket_handler* find_next_free_socket();
 
 #endif
