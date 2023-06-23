@@ -333,10 +333,7 @@ void add_successful_quit()
 void add_loggedin_user()
 {
     metrics.current_loggedin_users += 1;
-    if (metrics.current_loggedin_users > metrics.historic_loggedin_users)
-    {
-        metrics.historic_loggedin_users = metrics.current_loggedin_users;
-    }
+    metrics.historic_loggedin_users += 1;
 }
 
 void remove_loggedin_user()
