@@ -33,6 +33,7 @@ void parser_destroy(struct parser *p)
             free(p->e1->args[i]);
         }
         free(p->e1);
+        free_event_list(p);
         free_parser_def(p->def);
         free(p);
     }
@@ -130,7 +131,7 @@ void rec_free_event_list(struct parser_event *event)
     if (event != NULL)
     {
         rec_free_event_list(event->next);
-        free(event);
+        free_event(event, true);
     }
 }
 
