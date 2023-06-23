@@ -10,6 +10,7 @@ typedef uint8_t command_type_t;
 
 typedef struct command_t command_t;
 typedef command_t *(*command_handler)(command_t *, buffer_t, client_info_t *);
+typedef void (*free_metadata_handler)(void *ptr);
 
 struct command_t
 {
@@ -21,6 +22,7 @@ struct command_t
     unsigned int index;  // indice del socket handler
     char *args[2];       // argumentos del comando
     void *meta_data;     // estado actual del comando.
+    void (*free_metadata)(void *ptr); // funcion de liberacion del metadata del comando
 };
 
 typedef struct command_info
@@ -32,8 +34,13 @@ typedef struct command_info
     state_t valid_states; // estados en el cual el comando es valido llamarse.
 } command_info;
 
-// comando mas basico. escribe al socket el string de answer.
+// comando mas basico. escribe al socket el string de answer y termina
 command_t *handle_simple_command(command_t *command_state, buffer_t buffer, char *answer);
+
+// comando de respuesta. escribe una respuesta hasta su final y devuelve control al comando original
+command_t *handle_simple_response(command_t *command_state, buffer_t buffer, char *answer);
+
 void free_command(command_t *command);
 
+command_t *copy_command(command_t *incoming_command);
 #endif

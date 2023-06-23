@@ -52,6 +52,49 @@ command_t *handle_simple_command(command_t *command_state, buffer_t buffer, char
     command->index += written_bytes;
     return command;
 }
+
+command_t *handle_simple_response(command_t *command_state, buffer_t buffer, char *answer)
+{
+    if (command_state->answer == NULL)
+    {
+        if (answer == NULL)
+        {
+            log(FATAL, "Unexpected error \n%s", "");
+            return NULL;
+        }
+        size_t length = strlen(answer);
+        command_state->answer = malloc(length + 1);
+        command_state->answer_alloc = true;
+        if (command_state->answer == NULL)
+            LOG_AND_RETURN(FATAL, "Error handling command", command_state);
+        strncpy(command_state->answer, answer, length + 1);
+    }
+    log(DEBUG, "Writing %s to socket", command_state->answer + command_state->index);
+
+    size_t remaining_bytes_to_write = strlen(command_state->answer) - command_state->index;
+    size_t written_bytes = buffer_write_and_advance(buffer, command_state->answer + command_state->index, remaining_bytes_to_write);
+    if (written_bytes >= remaining_bytes_to_write)
+    {
+        command_state->index = 0;
+        return command_state;
+    }
+    command_state->index += written_bytes;
+    return command_state;
+}
+
+command_t *copy_command(command_t *incoming_command) {
+    command_t* command = malloc(sizeof(command_t));
+    command->command_handler = incoming_command->command_handler;
+    command->type = incoming_command->type;
+    command->index = incoming_command->index;
+    command->args[0] = incoming_command->args[0];
+    command->args[1] = incoming_command->args[1];
+    command->answer = incoming_command->answer;
+    command->answer_alloc = incoming_command->answer_alloc;
+    command->meta_data = incoming_command->meta_data;
+    return command;
+}
+
 //Funcion de liberacion del comando, libera los argumentos y el answer si es necesario
 void free_command(command_t *command)
 {

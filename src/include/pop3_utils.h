@@ -48,6 +48,13 @@ typedef struct retr_state_t
     FILE *email_stream;  // file stream del email, usado para cerrarlo despues
 } retr_state_t;
 
+typedef struct list_state_t
+{
+    size_t listing_shown;
+    bool greeting_done;
+    bool finish;
+} list_state_t;
+
 typedef struct email_metadata_t
 {
     char *filename; // path al archivo
@@ -77,5 +84,8 @@ void free_client_pop3(int index);
 
 // devuelve NULL si no hay email en el indice adecuado o si esta borrado
 email_metadata_t *get_email_at_index(pop3_client *state, size_t index);
+
+void free_retr_state(retr_state_t *state);
+void free_list_state(list_state_t *state);
 
 #endif

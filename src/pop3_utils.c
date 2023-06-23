@@ -274,6 +274,8 @@ command_t *handle_retr_write_command(command_t *command_state, buffer_t buffer, 
             {
                 close(state->emailfd);
                 pclose(state->email_stream);
+                int status;
+                waitpid(-1, &status, 0);
                 state->emailfd = -1;
             }
             else
@@ -383,6 +385,7 @@ command_t *handle_retr_command(command_t *command_state, buffer_t buffer, client
             metadata->email_stream = filestream;
 
             command->meta_data = metadata;
+            command->free_metadata = (free_metadata_handler)&free_retr_state;
             add_email_read();
             log(INFO, "User: %s retrieved email %s", client_state->pop3_client_info->selected_user->username, email->filename)
         }
@@ -519,6 +522,58 @@ command_t *handle_stat_command(command_t *command_state, buffer_t buffer, client
     command_state->answer = answer;
     return handle_simple_command(command_state, buffer, NULL);
 }
+
+command_t *handle_listings_command(command_t *command_state, buffer_t buffer, client_info_t *client_state) {
+    command_state = copy_command(command_state);
+    pop3_client *pop3_state = client_state->pop3_client_info;
+    if (command_state->meta_data == NULL) {
+        command_state->meta_data = calloc(1, sizeof(list_state_t));
+        command_state->free_metadata = (free_metadata_handler)&free_list_state;
+        command_state->answer = malloc(MAX_LISTING_SIZE * sizeof(char));
+        command_state->index = 0;
+        command_state->answer_alloc = true;
+    }
+    list_state_t* metadata = command_state->meta_data;
+    if (command_state->index == 0) {
+        if (!metadata->greeting_done) {
+            size_t non_deleted_email_count = 0;
+            size_t total_octets = 0;
+            for (size_t i = 0; i < pop3_state->emails_count; i += 1)
+            {
+                if (!pop3_state->emails[i].deleted)
+                {
+                    non_deleted_email_count += 1;
+                    total_octets += pop3_state->emails[i].octets;
+                }
+            }
+            metadata->greeting_done = true;
+            snprintf(command_state->answer, MAX_LISTING_SIZE, OK_LIST_RESPONSE, non_deleted_email_count, total_octets);
+        } else {
+            if (metadata->listing_shown == pop3_state->emails_count) {
+                snprintf(command_state->answer, MAX_LISTING_SIZE, "%s", SEPARATOR);
+                metadata->finish = true;
+            } 
+            for (size_t i = metadata->listing_shown; i < pop3_state->emails_count; i += 1)
+            {
+                if (!pop3_state->emails[metadata->listing_shown].deleted)
+                {
+                    snprintf(command_state->answer, MAX_LISTING_SIZE, LISTING_RESPONSE_FORMAT, i + 1, pop3_state->emails[i].octets);
+                    metadata->listing_shown += 1;
+                    break;
+                } else {
+                    metadata->listing_shown += 1;
+                }
+            }
+        }
+    }
+    command_t *response = handle_simple_response(command_state, buffer, NULL);
+    if (command_state->index == 0 && metadata->finish) {
+        free_command(command_state);
+        return NULL;
+    }
+    return response;
+}
+
 //Funcion que se encarga de listar los emails con los tamaños adecuados, salteando aquellos marcados con DELE
 command_t *handle_list_command(command_t *command_state, buffer_t buffer, client_info_t *client_state)
 {
@@ -553,47 +608,8 @@ command_t *handle_list_command(command_t *command_state, buffer_t buffer, client
     }
     else
     {
-        size_t non_deleted_email_count = 0;
-        size_t total_octets = 0;
-        for (size_t i = 0; i < pop3_state->emails_count; i += 1)
-        {
-            if (!pop3_state->emails[i].deleted)
-            {
-                non_deleted_email_count += 1;
-                total_octets += pop3_state->emails[i].octets;
-            }
-        }
-        int current_answer_index = 0;
-        int current_answer_size = sizeof(char *) * MAX_LISTING_SIZE * INITIAL_LISTING_COUNT;
-        command_state->answer_alloc = true;
-        char *listing_response = malloc(current_answer_size);
-        current_answer_index += snprintf(listing_response, MAX_LISTING_SIZE, OK_LIST_RESPONSE, non_deleted_email_count, total_octets);
-
-        for (size_t i = 0; i < pop3_state->emails_count; i += 1)
-        {
-            if (!pop3_state->emails[i].deleted)
-            {
-                current_answer_index += snprintf(listing_response + current_answer_index, MAX_LISTING_SIZE, LISTING_RESPONSE_FORMAT, i + 1, pop3_state->emails[i].octets);
-                if ((current_answer_size - current_answer_index) < MAX_LISTING_SIZE)
-                {
-                    current_answer_size *= 2;
-                    char *realloc_str = realloc(listing_response, current_answer_size);
-                    if (realloc_str != NULL)
-                    {
-                        listing_response = realloc_str;
-                    }
-                    else
-                    {
-                        log(ERROR, "Error in realloc %s", strerror(errno));
-                        break;
-                    }
-                }
-            }
-        }
-        command_state->answer_alloc = true;
-        command_state->answer = listing_response;
-        snprintf(listing_response + current_answer_index, MAX_LISTING_SIZE, "%s", SEPARATOR);
-        return handle_simple_command(command_state, buffer, NULL);
+        command_state->command_handler = &handle_listings_command;
+        return handle_listings_command(command_state, buffer, client_state);
     }
 }
 //Los siguientes comandos son siempre strings estaticos entonces se usa simple command para el handling
@@ -665,10 +681,12 @@ command_t *handle_dele_command(command_t *command_state, buffer_t buffer, client
 //Funcion que se encarga de liberar el estado de un cliente
 void free_pop3_client(pop3_client *client)
 {
-    if (client->current_state & TRANSACTION)
-    {//Si estaba en transaction libera el lock del usuario, se hace aca y no en quit por si hay un error
+    if (client->selected_user != NULL) {
         log(INFO, "User: %s logged out\n", client->selected_user->username);
         remove_loggedin_user();
+    }
+    if (client->current_state & TRANSACTION)
+    {//Si estaba en transaction libera el lock del usuario, se hace aca y no en quit por si hay un error
         client->selected_user->locked = false;
     }
     parser_destroy(client->parser_state);
@@ -679,12 +697,7 @@ void free_pop3_client(pop3_client *client)
     free(client->emails);
     if (client->pending_command != NULL && client->pending_command->meta_data != NULL)
     {
-        retr_state_t *metadata = (retr_state_t *)(client->pending_command->meta_data);
-        if (metadata->emailfd != -1)
-        {//Si quedo un email abierto con el transformador lo cierra
-            close(metadata->emailfd);
-            pclose(metadata->email_stream);
-        }
+        client->pending_command->free_metadata(client->pending_command->meta_data);
     }
     //Libera si esta un comando pendiente
     free_command(client->pending_command);
@@ -717,4 +730,19 @@ email_metadata_t *get_email_at_index(pop3_client *state, size_t index)
         }
     }
     return (found) ? &(state->emails[i]) : NULL;
+}
+
+void free_retr_state(retr_state_t *metadata)
+{
+    if (metadata->emailfd != -1)
+    {
+        close(metadata->emailfd);
+        pclose(metadata->email_stream);
+    }
+    free(metadata);
+}
+
+void free_list_state(list_state_t *metadata)
+{
+    free(metadata);
 }

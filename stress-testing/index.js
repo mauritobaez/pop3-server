@@ -3,6 +3,7 @@ const NetcatClient = require('netcat/client');
 
 const clients = 900;
 let finished = 0;
+let totaltime = 0;
 
 async function addUsers(users) {
     const nc = new NetcatClient();
@@ -23,8 +24,8 @@ async function addUsers(users) {
     });
 }
 
-function parseNanoToSeconds(hrtime) {
-    var seconds = (hrtime[0] + (hrtime[1] / 1e9));
+function parseNanoToMSeconds(hrtime) {
+    var seconds = (hrtime[0] + (hrtime[1] / 1e6));
     return seconds;
 }
 
@@ -36,12 +37,13 @@ async function getEmail(index) {
         port: 1110
     });
 
-    const label = `client ${index}`;
     const start = process.hrtime();
-    await pop3.RETR(1)    
+    await pop3.RETR(1);
     finished += 1;
-    console.log("Finished", finished);
-    const seconds = parseNanoToSeconds(process.hrtime(start));
+    const seconds = parseNanoToMSeconds(process.hrtime(start));
+    totaltime += seconds;
+    console.log(totaltime / finished);
+    await pop3.QUIT();    
     return seconds;
 }
 
@@ -58,7 +60,6 @@ async function start() {
         emails.push(getEmail(i));
     }
     const seconds = await Promise.all(emails);
-    console.log(seconds.reduce((prev, curr) => (prev + curr)) / seconds.length);
 }
 
 start();

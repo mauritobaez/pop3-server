@@ -14,15 +14,6 @@
 
 static bool done = false;
 
-static void sigchild_handler(const int signal)
-{
-    // limpia hijos ya terminados
-    log(INFO, "Child finished %d", signal);
-    int status;
-    int pid = waitpid(-1, &status, 0);
-    if (pid == -1)
-        log(ERROR, "Waitpid error %s\n", strerror(errno));
-}
 
 static void
 sigterm_handler(const int signal)
@@ -33,12 +24,22 @@ sigterm_handler(const int signal)
 
 int main(int argc, char *argv[])
 {
+    // No usamos stdin
+    close(STDIN_FILENO);
+
+    // Comenzamos el sistema de metricas
     start_metrics();
+
+    // Obtenemos las configuraciones de servers
     global_config = get_server_config(argc, argv);
     print_config(global_config);
+
+    // Signals
     signal(SIGTERM, sigterm_handler);
     signal(SIGINT, sigterm_handler);
-    signal(SIGCHLD, sigchild_handler);
+    // signal(SIGCHLD, sigchild_handler);
+
+    // Setupeamos los handlers de sockets pasivos.
     sockets[0].fd = setup_passive_socket(global_config.pop3_port);
     sockets[0].handler = (int (*)(void *, bool, bool)) & accept_pop3_connection;
     sockets[0].occupied = true;
@@ -120,7 +121,6 @@ int main(int argc, char *argv[])
         }
 
         now = time(NULL);
-
         for (unsigned int i = 0; i < total_poll_fds; i += 1)
         {
             if (pfds[i].revents == 0)

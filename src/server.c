@@ -9,7 +9,7 @@
 #include "logger.h"
 
 #define PATH_MAX 512
-#define TOTAL_ARGUMENTS 6
+#define TOTAL_ARGUMENTS 7
 #define POP3_PORT "1110"
 #define PEEP_PORT "2110"
 #define DEFAULT_PEEP_ADMIN "root"
@@ -23,6 +23,7 @@ int handle_peep_admin(int argc, char *arg[], server_config *config);
 int handle_pop3_port(int argc, char *arg[], server_config *config);
 int handle_peep_port(int argc, char *arg[], server_config *config);
 int handle_transform_command(int argc, char *arg[], server_config *config);
+int handle_timeout(int argc, char *arg[], server_config *config);
 
 argument_t arguments[TOTAL_ARGUMENTS] = {
     {.argument = "--user", .handler = handle_user, .minified_argument = "-u"},
@@ -30,7 +31,9 @@ argument_t arguments[TOTAL_ARGUMENTS] = {
     {.argument = "--peep-admin", .handler = handle_peep_admin, .minified_argument = "-a"},
     {.argument = "--pop3-port", .handler = handle_pop3_port, .minified_argument = "-p"},
     {.argument = "--peep-port", .handler = handle_peep_port, .minified_argument = NULL},
-    {.argument = "--transform", .handler = handle_transform_command, .minified_argument = "-t"}};
+    {.argument = "--transform", .handler = handle_transform_command, .minified_argument = "-t"},
+    {.argument = "--timeout", .handler = handle_timeout, .minified_argument = NULL},
+};
 
 // Acepta multiples llamados a --user
 int handle_user(int argc, char *arg[], server_config *config)
@@ -65,6 +68,19 @@ int handle_user(int argc, char *arg[], server_config *config)
     user->locked = false;
     user->removed = false;
     enqueue(config->users, user);
+    return 1;
+}
+
+int handle_timeout(int argc, char *arg[], server_config *config) {
+    if (argc == 0) 
+    {
+        log(FATAL, "No matching property for argument: %s", "--timeout");
+    }
+    int timeout = atoi(arg[0]);
+    if (timeout < 0) {
+        log(FATAL, "Not a valid timeout value: %d", timeout);
+    }
+    config->timeout = timeout;
     return 1;
 }
 
