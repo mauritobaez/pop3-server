@@ -36,13 +36,14 @@ Se puede encontrar un informe acerca del desarrollo del trabajo práctico en el 
 
 
 ### Servidor
-Argumentos posibles al hacer ./pop3d
-+ `-u <username>:<password>`     Genera un usuario con nombre `username` y contraseña `password`.
-+ `-m <maildir>`    Establece el directorio de emails.
-+ `--peep-admin <admin-username>:<admin-password>`     Establece las credenciales del administrador.
-+ `--pop3-port <port>`  Establece el puerto en el que estará el socket pasivo de POP3.
-+ `--peep-port <port>`  Establece el puerto en el que estará el socket pasivo de PEEP.
-+ `--transform '<transformation>'` Establece qué transformación será utilizada.
+Argumentos posibles al hacer ./pop3d. Cada uno tiene su versión abreviada (`-u`) y completa (`--user`), pero los parámetros que estos reciben son los mismos más alla de qué version se utilice. 
++ `-u, --user <username>:<password>`     Genera un usuario con nombre `username` y contraseña `password`.
++ `-m, --mailbox <maildir>`    Establece el directorio de emails.
++ `-a, --peep-admin <admin-username>:<admin-password>`     Establece las credenciales del administrador.
++ `-p, --pop3-port <port>`  Establece el puerto en el que estará el socket pasivo de POP3.
++ `-P, --peep-port <port>`  Establece el puerto en el que estará el socket pasivo de PEEP.
++ `-t, --transform '<transformation>'` Establece qué transformación será utilizada. Se debe indicar un comando a ejecutar que recibirá el mail como argumento. (ej.: 'tac')
++ `-T, --timeout <timeout_value>` Establece el tiempo máximo que espera entre interacciones de un usuario antes de desconectarlo. (0 indica que no hay timeout).
 
 
 ### Cliente
